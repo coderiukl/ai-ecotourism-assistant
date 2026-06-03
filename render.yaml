@@ -9,10 +9,6 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
-    disk:
-      name: chromadb-data
-      mountPath: /app/chroma_db
-      sizeGB: 1
 
   - type: web
     name: ai-ecotourism-frontend
