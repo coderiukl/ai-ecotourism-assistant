@@ -9,7 +9,7 @@ except ImportError:
     pass
 
 DATA_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = DATA_DIR.parent.parent
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", DATA_DIR.parent.parent))
 
 XLSX_PATH = PROJECT_ROOT / "nui_ba_den_tourism_database.xlsx"
 IMAGES_DIR = PROJECT_ROOT / "images"
