@@ -13,7 +13,9 @@ import VideoPage from './pages/VideoPage';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 function App() {
-  const [step, setStep] = useState('qr');
+  const [step, setStep] = useState(
+    window.location.hash === '#dashboard' ? 'dashboard' : 'qr',
+  );
   const [destination, setDestination] = useState(null);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ function App() {
         });
         const data = await res.json();
         if (data.status === 'valid') {
-          setDestination(data.destination);
+          setDestination(null);
           setStep('dashboard');
           window.history.replaceState({}, '', window.location.pathname);
         }
@@ -45,8 +47,8 @@ function App() {
     <div className="app-shell">
       {step === 'qr' && (
         <QRScanPage
-          onSuccess={(data) => {
-            setDestination(data);
+          onSuccess={() => {
+            setDestination(null);
             setStep('dashboard');
           }}
         />
