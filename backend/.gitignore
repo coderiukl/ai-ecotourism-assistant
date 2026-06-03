@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Vector store (rebuilt on startup)
+chroma_db/
+
+# OS
+.DS_Store
+Thumbs.db

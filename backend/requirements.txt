@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+openpyxl
+numpy
+sentence-transformers
+chromadb
+python-dotenv
+anthropic
+httpx

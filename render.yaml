@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: ai-ecotourism-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    disk:
+      name: chromadb-data
+      mountPath: /app/chroma_db
+      sizeGB: 1
+
+  - type: web
+    name: ai-ecotourism-frontend
+    env: docker
+    dockerfilePath: frontend/Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    envVars:
+      - key: VITE_API_URL
+        value: https://ai-ecotourism-backend.onrender.com

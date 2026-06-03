@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/chroma_db:/chroma_db
+      - ./images:/images
+      - ./nui_ba_den_tourism_database.xlsx:/nui_ba_den_tourism_database.xlsx
+      - ./logs:/app/logs
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CHROMA_COLLECTION=nui_ba_den_rag
+      - ANTHROPIC_MODEL=claude-haiku-4-5
+    env_file:
+      - ./backend/.env
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
