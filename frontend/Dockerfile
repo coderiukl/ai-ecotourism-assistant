@@ -19,4 +19,4 @@ RUN npm install --production --ignore-scripts serve
 
 EXPOSE 5173
 
-CMD ["npx", "serve", "-s", "dist", "-l", "5173"]
+CMD ["sh", "-c", "npx serve -s dist -l tcp://0.0.0.0:${PORT:-5173}"]

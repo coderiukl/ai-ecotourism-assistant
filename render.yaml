@@ -1,8 +1,9 @@
 services:
   - type: web
     name: ai-ecotourism-backend
-    env: docker
+    runtime: docker
     dockerfilePath: backend/Dockerfile
+    dockerContext: backend
     plan: free
     region: singapore
     healthCheckPath: /
@@ -12,8 +13,9 @@ services:
 
   - type: web
     name: ai-ecotourism-frontend
-    env: docker
+    runtime: docker
     dockerfilePath: frontend/Dockerfile
+    dockerContext: frontend
     plan: free
     region: singapore
     healthCheckPath: /
