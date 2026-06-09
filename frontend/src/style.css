@@ -38,19 +38,23 @@ button {
 .phone {
   width: 390px;
   max-width: 100%;
-  min-height: 760px;
-  max-height: calc(100dvh - 48px);
+  height: min(760px, calc(100dvh - 48px));
+  min-height: 0;
+  display: flex;
   background: #fff;
   border: 8px solid #133b2f;
   border-radius: 34px;
   box-shadow: 0 24px 80px rgba(18, 92, 62, 0.18);
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
 }
 
 .page {
+  width: 100%;
+  flex: 1;
   min-height: 744px;
   padding: 24px;
+  overflow-y: auto;
 }
 
 .hero {
@@ -469,8 +473,29 @@ p {
   font-size: 28px;
 }
 
+.chatbot-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chatbot-page .back-btn,
+.chatbot-page .topbar,
+.chatbot-page .quick-questions,
+.chatbot-page .chat-input,
+.chatbot-page .primary-btn {
+  flex: 0 0 auto;
+}
+
+.chatbot-page .topbar {
+  margin-bottom: 12px;
+}
+
 .chat-box {
-  height: 430px;
+  min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -479,8 +504,23 @@ p {
   border-radius: 20px;
   background: linear-gradient(180deg, #f7fcf9, #f2faf5);
   overflow-y: auto;
+  overscroll-behavior: contain;
   scroll-behavior: smooth;
-  scrollbar-gutter: stable;
+  scrollbar-color: rgba(22, 72, 54, 0.34) transparent;
+  scrollbar-width: thin;
+}
+
+.chat-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-box::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(22, 72, 54, 0.28);
 }
 
 .msg {
@@ -606,6 +646,21 @@ p {
   border-bottom-color: rgba(255, 255, 255, 0.45);
 }
 
+.streaming-bubble {
+  position: relative;
+}
+
+.typing-cursor {
+  width: 7px;
+  height: 1.1em;
+  display: inline-block;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #1f875a;
+  vertical-align: -2px;
+  animation: cursor-blink 0.85s steps(2, start) infinite;
+}
+
 .typing-dot {
   color: #668074;
   font-weight: 700;
@@ -718,6 +773,12 @@ textarea {
   }
 }
 
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 @media (max-width: 480px) {
   body {
     background: #fff;
@@ -730,7 +791,8 @@ textarea {
 
   .phone {
     width: 100%;
-    min-height: 100dvh;
+    height: 100dvh;
+    min-height: 0;
     max-height: none;
     border: 0;
     border-radius: 0;
@@ -789,7 +851,12 @@ textarea {
   }
 
   .chat-box {
-    height: clamp(320px, 52dvh, 430px);
+    min-height: clamp(220px, 42dvh, 320px);
+  }
+
+  .chatbot-page .chat-box {
+    height: auto;
+    min-height: 0;
   }
 }
 

@@ -1,8 +1,9 @@
-﻿import logging
+import logging
 import math
 import re
 
 from anthropic import Anthropic
+from .query_guard import check_query_clarity
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ from .data_loader import (
     SERVICES_PRICING,
 )
 from .memory import session_store
-from .prompts import SYSTEM_PROMPT, build_messages, fallback_rag_answer
+from .prompts import build_messages, build_system_prompt, fallback_rag_answer
 from .text_utils import clean_text, slugify
 from .vector_store import query_collection, vector_store_status
 
@@ -111,11 +112,22 @@ def build_rag_documents():
                     [
                         ("Mã điểm đến", service.get("dest_id")),
                         ("Loại dịch vụ", service.get("service_type")),
+                        ("Service category", service.get("service_category")),
+                        ("Area", service.get("area")),
+                        ("Direction", service.get("direction")),
+                        ("Customer type", service.get("customer_type")),
+                        ("Price VND", service.get("price_vnd")),
                         ("Giá người lớn", service.get("adult_price_vnd")),
                         ("Giá trẻ em", service.get("child_price_vnd")),
                         ("Giá combo", service.get("combo_price_vnd")),
+                        ("Conditions", service.get("conditions")),
+                        ("Included services", service.get("included_services")),
+                        ("Excluded services", service.get("excluded_services")),
                         ("Ghi chú", service.get("note")),
+                        ("Answer hint", service.get("answer_hint")),
+                        ("Query keywords", service.get("query_keywords")),
                         ("Ngày cập nhật", service.get("updated_date")),
+                        ("Source update", service.get("source_update")),
                         ("Xác minh", service.get("verification_note")),
                     ],
                 ),
@@ -253,6 +265,100 @@ def get_rag_index():
     return _rag_index
 
 
+def keyword_bonus(question, document):
+    """Small lexical bonus so exact words like 'giá vé', 'cáp treo' rank higher."""
+    query_tokens = set(re.findall(r"\w+", slugify(question or "")))
+    if not query_tokens:
+        return 0.0
+
+    haystack = slugify(" ".join(
+        str(document.get(field, ""))
+        for field in ("title", "type", "text")
+    ))
+    matched = sum(1 for token in query_tokens if token and token in haystack)
+    return min(0.25, matched * 0.04)
+
+
+def rerank_contexts(question, contexts, top_k=RAG_TOP_K):
+    reranked = []
+    for context in contexts or []:
+        score = float(context.get("score") or 0.0) + keyword_bonus(question, context)
+        reranked.append(({**context, "score": round(score, 4)}))
+    reranked.sort(key=lambda item: item.get("score", 0), reverse=True)
+    return reranked[:top_k]
+
+
+def query_tokens(question):
+    return set(re.findall(r"[a-z0-9]+", slugify(question or "")))
+
+
+def is_price_related(question):
+    tokens = query_tokens(question)
+    return bool(tokens & {"gia", "ve", "phi", "ticket", "price", "cost"})
+
+
+def expand_contextual_query(question, destination_id=None):
+    destination = DESTINATIONS.get(destination_id) if destination_id else None
+    if not destination:
+        return question, False
+
+    tokens = query_tokens(question)
+    if not tokens or len(tokens) > 8:
+        return question, False
+
+    place = clean_text(destination.get("name"))
+    dest_code = clean_text(destination.get("dest_code"))
+
+    if is_price_related(question):
+        return f"gia ve cap treo dich vu buffet combo {place} {dest_code} Nui Ba Den", True
+    if tokens & {"duong", "di", "xe", "route"}:
+        return f"duong di di chuyen {place} {dest_code} Nui Ba Den", True
+    if tokens & {"gio", "may", "time", "open"}:
+        return f"gio mo cua thoi gian tham quan {place} {dest_code} Nui Ba Den", True
+    if tokens & {"choi", "lam", "activity", "activities"}:
+        return f"hoat dong trai nghiem co gi choi {place} {dest_code} Nui Ba Den", True
+
+    return question, False
+
+
+def service_contexts_for_question(question, destination_id=None):
+    if not is_price_related(question):
+        return []
+
+    destination = DESTINATIONS.get(destination_id) if destination_id else None
+    dest_code = clean_text(destination.get("dest_code")) if destination else ""
+    wanted_codes = {dest_code, "TN001"} if dest_code else {"TN001"}
+    docs = []
+
+    for document in get_rag_documents():
+        if document.get("type") != "service_pricing":
+            continue
+        if clean_text(document.get("dest_code")) not in wanted_codes:
+            continue
+        docs.append({
+            "score": round(1.5 + keyword_bonus(question, document), 4),
+            "id": document["id"],
+            "type": document["type"],
+            "title": document.get("title"),
+            "source_url": document.get("source_url"),
+            "text": document["text"],
+        })
+
+    return docs[:8]
+
+
+def merge_contexts(primary, supplemental, top_k=RAG_TOP_K):
+    merged = []
+    seen = set()
+    for context in [*(supplemental or []), *(primary or [])]:
+        context_id = context.get("id")
+        if context_id in seen:
+            continue
+        seen.add(context_id)
+        merged.append(context)
+    return merged[:max(top_k, len(supplemental or []))]
+
+
 def retrieve_context_from_memory(question, destination_id=None, top_k=RAG_TOP_K):
     query_embedding = embed_text(question)
     scored_documents = []
@@ -261,6 +367,7 @@ def retrieve_context_from_memory(question, destination_id=None, top_k=RAG_TOP_K)
 
     for document in get_rag_index():
         score = cosine_similarity(query_embedding, document["embedding"])
+        score += keyword_bonus(question, document)
         if destination_id and document.get("destination_id") == destination_id:
             score += 0.15
         elif dest_code and document.get("dest_code") == dest_code:
@@ -295,7 +402,7 @@ def retrieve_context(question, destination_id=None, top_k=RAG_TOP_K):
     )
     if contexts is not None:
         _vector_store_backend = "chromadb"
-        return contexts
+        return rerank_contexts(question, contexts, top_k=top_k)
     _vector_store_backend = "in_memory"
     return retrieve_context_from_memory(question, destination_id=destination_id, top_k=top_k)
 
@@ -334,6 +441,7 @@ def ask_claude(question, contexts, session_id="default"):
 
     history = session_store.build_history(session_id)
     messages = build_messages(question, contexts, history)
+    system_prompt = build_system_prompt(contexts)
 
     try:
         client = _get_client()
@@ -348,7 +456,7 @@ def ask_claude(question, contexts, session_id="default"):
         with client.messages.stream(
             model=ANTHROPIC_MODEL,
             max_tokens=ANTHROPIC_MAX_TOKENS,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=messages,
         ) as stream:
             for chunk in stream.text_stream:
@@ -369,13 +477,50 @@ def ask_claude(question, contexts, session_id="default"):
 
 def rag_answer(question, destination_id=None, session_id="default"):
     question = (question or "").strip()
+    effective_question, expanded_from_context = expand_contextual_query(
+        question,
+        destination_id=destination_id,
+    )
+    clarity = (
+        {"needs_clarification": False, "clarifying_question": ""}
+        if expanded_from_context
+        else check_query_clarity(question)
+    )
+
+    if clarity["needs_clarification"]:
+        answer = clarity["clarifying_question"]
+
+        if session_id and answer:
+            session_store.append_turn(session_id, question, answer)
+
+        return {
+            "answer": answer,
+            "retrieval": {
+                "embedding_backend": _embedding_backend,
+                "embedding_model": RAG_EMBEDDING_MODEL,
+                "embedding_dim": RAG_EMBEDDING_DIM,
+                "vector_store": _vector_store_backend,
+                "top_k": RAG_TOP_K,
+                "used_claude": False,
+                "claude_configured": bool(ANTHROPIC_API_KEY),
+                "claude_model": ANTHROPIC_MODEL,
+                "claude_base_url": ANTHROPIC_BASE_URL,
+                "claude_error": "needs_clarification",
+                "contexts": [],
+            },
+        }
     logger.info(
-        "rag_answer start | session=%s dest=%s q=%r",
+        "rag_answer start | session=%s dest=%s q=%r effective_q=%r",
         session_id,
         destination_id,
         question[:80],
+        effective_question[:120],
     )
-    contexts = retrieve_context(question, destination_id=destination_id) if question else []
+    contexts = retrieve_context(effective_question, destination_id=destination_id) if question else []
+    contexts = merge_contexts(
+        contexts,
+        service_contexts_for_question(effective_question, destination_id=destination_id),
+    )
     logger.info("rag_answer retrieved %d contexts", len(contexts))
     claude_answer = ask_claude(question, contexts, session_id=session_id)
     logger.info(
@@ -400,6 +545,8 @@ def rag_answer(question, destination_id=None, session_id="default"):
             "claude_model": ANTHROPIC_MODEL,
             "claude_base_url": ANTHROPIC_BASE_URL,
             "claude_error": _last_claude_error,
+            "expanded_from_context": expanded_from_context,
+            "effective_question": effective_question,
             "contexts": contexts,
         },
     }

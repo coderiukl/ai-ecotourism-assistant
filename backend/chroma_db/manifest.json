@@ -1,7 +1,7 @@
 {
-  "fingerprint": "893bd8507155989337070a9b46413b4f8825457625bc63ea8b8bb0dabf4222ac",
+  "fingerprint": "6d9bb5695c290d0875799f3a19635da9cab5fa669e8dd24b1f71a8567e92b2c3",
   "collection": "nui_ba_den_rag",
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "embedding_dim": 384,
-  "documents": 79
+  "documents": 348
 }

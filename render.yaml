@@ -10,15 +10,3 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
-
-  - type: web
-    name: ai-ecotourism-frontend
-    runtime: docker
-    dockerfilePath: frontend/Dockerfile
-    dockerContext: frontend
-    plan: free
-    region: singapore
-    healthCheckPath: /
-    envVars:
-      - key: VITE_API_URL
-        value: https://ai-ecotourism-backend.onrender.com

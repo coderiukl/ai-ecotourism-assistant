@@ -51,7 +51,7 @@ function renderInline(text, keyPrefix) {
       if (href.length < token.length) parts.push(token.slice(href.length));
     }
 
-    lastIndex = pattern.lastIndex;
+    lastIndex = match.lastIndex;
   }
 
   if (lastIndex < text.length) {
@@ -61,8 +61,28 @@ function renderInline(text, keyPrefix) {
   return parts;
 }
 
+function normalizeMarkdownText(text) {
+  const raw = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .replace(/\s*(?:â€¢|•)\s+/g, '\n- ')
+    .replace(/([^\n])\s+([-*]\s+)/g, '$1\n$2');
+
+  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  const isListLine = (line) => /^(?:[-*]|â€¢|•)\s+/.test(line) || /^\d+\.\s+/.test(line);
+  const grouped = [];
+
+  lines.forEach((line) => {
+    const prev = grouped[grouped.length - 1];
+    if (prev && isListLine(prev) !== isListLine(line)) grouped.push('');
+    grouped.push(line);
+  });
+
+  return grouped.join('\n');
+}
+
 function MarkdownMessage({ text }) {
-  const blocks = String(text || '').trim().split(/\n{2,}/);
+  const blocks = normalizeMarkdownText(text).split(/\n{2,}/);
 
   return (
     <div className="markdown-message">
@@ -76,12 +96,13 @@ function MarkdownMessage({ text }) {
           return <div className="math-block" key={key}>{block.trim().slice(2, -2).trim()}</div>;
         }
 
-        if (lines.every((line) => /^[-*]\s+/.test(line))) {
+        if (lines.every((line) => /^[-*]\s+/.test(line)) || lines.every((line) => /^•\s+/.test(line))) {
           return (
             <ul key={key}>
-              {lines.map((line, itemIndex) => (
-                <li key={`${key}-${itemIndex}`}>{renderInline(line.replace(/^[-*]\s+/, ''), `${key}-${itemIndex}`)}</li>
-              ))}
+              {lines.map((line, itemIndex) => {
+                const clean = line.replace(/^[-*]\s+/, '').replace(/^•\s+/, '');
+                return <li key={`${key}-${itemIndex}`}>{renderInline(clean, `${key}-${itemIndex}`)}</li>;
+              })}
             </ul>
           );
         }
@@ -121,14 +142,54 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [visibleStreamingText, setVisibleStreamingText] = useState('');
+  const chatBoxRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const prevLoadingRef = useRef(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, loading]);
+    if (!loading && prevLoadingRef.current) {
+      setStreamingText('');
+      setVisibleStreamingText('');
+    }
+    prevLoadingRef.current = loading;
+  }, [loading]);
+
+  const scrollToBottom = (behavior = 'smooth') => {
+    const box = chatBoxRef.current;
+    if (box) {
+      box.scrollTo({ top: box.scrollHeight, behavior });
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+  };
 
   useEffect(() => {
+    scrollToBottom();
+  }, [messages, visibleStreamingText]);
+
+  useEffect(() => {
+    if (!loading) {
+      setVisibleStreamingText('');
+      return;
+    }
+    if (visibleStreamingText.length >= streamingText.length) return;
+
+    const timer = window.setTimeout(() => {
+      const nextLength = Math.min(streamingText.length, visibleStreamingText.length + 3);
+      setVisibleStreamingText(streamingText.slice(0, nextLength));
+    }, 18);
+
+    return () => window.clearTimeout(timer);
+  }, [loading, streamingText, visibleStreamingText]);
+
+  useEffect(() => {
+    if (!loading && streamingText) {
+      setStreamingText('');
+      setVisibleStreamingText('');
+    }
     inputRef.current?.focus();
   }, [messages, loading]);
 
@@ -139,19 +200,58 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     setMessages((prev) => [...prev, { role: 'user', text: cleanQuestion }]);
     setInput('');
     setLoading(true);
+    setStreamingText('');
+    setVisibleStreamingText('');
+
+    const sessionId = `session_${Date.now()}`;
 
     try {
-      const res = await fetch(`${API_URL}/api/rag/chat`, {
+      const res = await fetch(`${API_URL}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           destination_id: destination?.id || 1,
           message: cleanQuestion,
+          session_id: sessionId,
         }),
       });
 
-      const data = await res.json();
-      setMessages((prev) => [...prev, { role: 'bot', text: data.answer }]);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No reader');
+
+      const decoder = new TextDecoder();
+      let botText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('event: token')) continue;
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.token) {
+                botText += data.token;
+                setStreamingText(botText);
+                scrollToBottom('auto');
+              }
+            } catch {}
+          }
+          if (line.startsWith('event: done')) break;
+        }
+      }
+
+      if (botText) {
+        setMessages((prev) => [...prev, { role: 'bot', text: botText }]);
+      }
     } catch (e) {
       setMessages((prev) => [
         ...prev,
@@ -160,6 +260,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     }
 
     setLoading(false);
+    setStreamingText('');
   }
 
   return (
@@ -186,13 +287,18 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           </button>
         </div>
 
-        <div className="chat-box" aria-live="polite">
+        <div className="chat-box" aria-live="polite" ref={chatBoxRef}>
           {messages.map((message, index) => (
             <div className={`msg ${message.role === 'user' ? 'user' : 'bot'}`} key={index}>
               <MarkdownMessage text={message.text} />
             </div>
           ))}
-          {loading && <div className="msg bot typing-dot">AI đang trả lời...</div>}
+          {loading && (
+            <div className="msg bot streaming-bubble">
+              <MarkdownMessage text={visibleStreamingText || ' '} />
+              <span className="typing-cursor" />
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
 
