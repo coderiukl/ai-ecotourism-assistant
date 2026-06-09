@@ -242,6 +242,16 @@ p {
   color: white;
 }
 
+.video-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.video-page .intro-video-box {
+  order: -1;
+  margin-top: 0;
+}
+
 .intro-video-box {
   display: block;
   padding: 0;

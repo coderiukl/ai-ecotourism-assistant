@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ArrowLeft, SkipForward } from 'lucide-react';
 
 import { assetUrl } from '../api';
@@ -6,10 +7,21 @@ const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || '/videos/intro.m
 
 export default function VideoPage({ destination, onBack, onNext }) {
   const posterUrl = assetUrl(destination?.image_url);
+  const pageRef = useRef(null);
+  const videoBoxRef = useRef(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    pageRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+    requestAnimationFrame(() => {
+      videoBoxRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+    });
+  }, [destination?.id]);
 
   return (
     <div className="phone">
-      <div className="page video-page">
+      <div className="page video-page" ref={pageRef}>
         <button className="back-btn" onClick={onBack}>
           <ArrowLeft size={18} /> QR
         </button>
@@ -23,7 +35,7 @@ export default function VideoPage({ destination, onBack, onNext }) {
           </div>
         </div>
 
-        <div className="video-box intro-video-box">
+        <div className="video-box intro-video-box" ref={videoBoxRef}>
           <video
             className="intro-video"
             controls
