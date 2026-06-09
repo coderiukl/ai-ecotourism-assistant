@@ -337,3 +337,15 @@
 2026-06-09 16:09:56,356 INFO [watchfiles.main] 1 change detected
 2026-06-09 16:09:58,420 INFO [watchfiles.main] 5 changes detected
 2026-06-09 16:09:58,814 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 16:21:05,803 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 16:21:12,518 INFO [sentence_transformers.base.model] No device provided, using cpu
+2026-06-09 16:21:12,519 INFO [sentence_transformers.base.model] Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+2026-06-09 16:21:30,946 INFO [anthropic._base_client] Retrying request to /v1/messages in 0.474642 seconds
+2026-06-09 16:21:33,473 INFO [anthropic._base_client] Retrying request to /v1/messages in 0.966464 seconds
+2026-06-09 16:21:36,506 WARNING [app.rag] Claude stream error for session test: Connection error.
+2026-06-09 16:24:24,767 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 16:24:33,123 INFO [sentence_transformers.base.model] No device provided, using cpu
+2026-06-09 16:24:33,124 INFO [sentence_transformers.base.model] Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+2026-06-09 16:24:55,603 WARNING [app.rag] Claude stream error for session test2: Connection error.
+2026-06-09 16:25:50,618 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 16:25:56,814 WARNING [app.rag] Claude stream error for session test3: Connection error.

@@ -205,6 +205,22 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
     const sessionId = `session_${Date.now()}`;
 
+    async function askWithoutStream() {
+      const fallbackRes = await fetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination_id: destination?.id || 1,
+          message: cleanQuestion,
+          session_id: sessionId,
+        }),
+      });
+
+      if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
+      const data = await fallbackRes.json();
+      return data.answer || 'AI chưa có câu trả lời phù hợp.';
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/chat/stream`, {
         method: 'POST',
@@ -254,6 +270,19 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
         setMessages((prev) => [...prev, { role: 'bot', text: botText }]);
       }
     } catch (e) {
+      try {
+        const answer = await askWithoutStream();
+        setMessages((prev) => [...prev, { role: 'bot', text: answer }]);
+        setLoading(false);
+        setStreamingText('');
+        return;
+      } catch (fallbackError) {
+        console.error('Chat backend error', {
+          apiUrl: API_URL || window.location.origin,
+          streamError: e,
+          fallbackError,
+        });
+      }
       setMessages((prev) => [
         ...prev,
         { role: 'bot', text: 'Hiện tại AI chưa kết nối được backend. Bạn thử lại sau nhé.' },

@@ -23,6 +23,7 @@ CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "nui_ba_den_rag")
 RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 RAG_EMBEDDING_DIM = int(os.getenv("RAG_EMBEDDING_DIM", "384"))
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
+RAG_USE_SENTENCE_TRANSFORMER = os.getenv("RAG_USE_SENTENCE_TRANSFORMER", "false").lower() == "true"
 
 # Claude / Anthropic
 
@@ -34,6 +35,8 @@ ANTHROPIC_AUTH_HEADER = os.getenv("ANTHROPIC_AUTH_HEADER", "x-api-key")
 ANTHROPIC_MESSAGES_URL = os.getenv("ANTHROPIC_MESSAGES_URL", "")
 ANTHROPIC_USER_AGENT = os.getenv("ANTHROPIC_USER_AGENT", "PostmanRuntime/7.43.0")
 ANTHROPIC_MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1200"))
+ANTHROPIC_TIMEOUT_SECONDS = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "5"))
+ANTHROPIC_MAX_RETRIES = int(os.getenv("ANTHROPIC_MAX_RETRIES", "0"))
 
 # Chat Memory
 

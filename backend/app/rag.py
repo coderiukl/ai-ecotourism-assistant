@@ -14,9 +14,12 @@ from .config import (
     ANTHROPIC_MODEL,
     ANTHROPIC_VERSION,
     ANTHROPIC_MAX_TOKENS,
+    ANTHROPIC_MAX_RETRIES,
+    ANTHROPIC_TIMEOUT_SECONDS,
     RAG_EMBEDDING_DIM,
     RAG_EMBEDDING_MODEL,
     RAG_TOP_K,
+    RAG_USE_SENTENCE_TRANSFORMER,
 )
 from .data_loader import (
     ACTIVITIES,
@@ -206,6 +209,10 @@ def get_rag_documents():
 def get_embedding_model():
     global _embedding_backend, _embedding_model
     if _embedding_backend:
+        return _embedding_model
+    if not RAG_USE_SENTENCE_TRANSFORMER:
+        _embedding_model = None
+        _embedding_backend = "hash_fallback"
         return _embedding_model
     try:
         from sentence_transformers import SentenceTransformer
@@ -422,6 +429,8 @@ def _get_client():
         _client = Anthropic(
             api_key=ANTHROPIC_API_KEY,
             base_url=ANTHROPIC_BASE_URL,
+            max_retries=ANTHROPIC_MAX_RETRIES,
+            timeout=ANTHROPIC_TIMEOUT_SECONDS,
             default_headers={
                 "User-Agent": ANTHROPIC_USER_AGENT,
                 "anthropic-version": ANTHROPIC_VERSION,
