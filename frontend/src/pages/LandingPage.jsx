@@ -1,9 +1,12 @@
 import { ArrowLeft, MapPin, Sparkles } from 'lucide-react';
 
+import { assetUrl } from '../api';
+
 export default function LandingPage({ destination, onBack, onNext }) {
-  const heroStyle = destination?.image_url
+  const imageUrl = assetUrl(destination?.image_url);
+  const heroStyle = imageUrl
     ? {
-        backgroundImage: `linear-gradient(135deg, rgba(21, 83, 60, 0.72), rgba(31, 135, 90, 0.72)), url(${destination.image_url})`,
+        backgroundImage: `linear-gradient(135deg, rgba(21, 83, 60, 0.72), rgba(31, 135, 90, 0.72)), url(${imageUrl})`,
       }
     : undefined;
 

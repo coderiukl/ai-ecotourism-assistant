@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, MapPin, Star } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL, assetUrl } from '../api';
 
 const LOCATION_CATEGORIES = [
   {
@@ -166,7 +166,8 @@ export default function DashboardPage({ initialDestination, onBack, onSelect }) 
                     const destinationKey =
                       destination.id || destination.dest_code || destination.name;
                     const hasCoverError = coverErrors[destinationKey];
-                    const hasImage = !!destination.image_url;
+                    const coverUrl = assetUrl(destination.image_url);
+                    const hasImage = !!coverUrl;
 
                     return (
                       <button
@@ -179,7 +180,7 @@ export default function DashboardPage({ initialDestination, onBack, onSelect }) 
                           style={
                             hasImage && !hasCoverError
                               ? {
-                                  backgroundImage: `linear-gradient(135deg, rgba(21, 83, 60, 0.18), rgba(31, 135, 90, 0.56)), url(${destination.image_url})`,
+                                  backgroundImage: `linear-gradient(135deg, rgba(21, 83, 60, 0.18), rgba(31, 135, 90, 0.56)), url(${coverUrl})`,
                                 }
                               : undefined
                           }
@@ -187,7 +188,7 @@ export default function DashboardPage({ initialDestination, onBack, onSelect }) 
                           {hasImage && !hasCoverError && (
                             <img
                               alt={destination.image_alt || destination.name}
-                              src={destination.image_url}
+                              src={coverUrl}
                               onError={() => handleCoverError(destinationKey)}
                               style={{
                                 position: 'absolute',

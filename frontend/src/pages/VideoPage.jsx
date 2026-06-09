@@ -1,9 +1,12 @@
 import { ArrowLeft, Play, SkipForward } from 'lucide-react';
 
+import { assetUrl } from '../api';
+
 export default function VideoPage({ destination, onBack, onNext }) {
-  const videoStyle = destination?.image_url
+  const imageUrl = assetUrl(destination?.image_url);
+  const videoStyle = imageUrl
     ? {
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.42)), url(${destination.image_url})`,
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.42)), url(${imageUrl})`,
       }
     : undefined;
 
