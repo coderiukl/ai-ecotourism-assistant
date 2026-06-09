@@ -57,8 +57,8 @@ export default function QRScanPage({ onSuccess }) {
         <div className="card">
           <b>📌 Hướng dẫn</b>
           <p className="small-text">
-            Sau khi quét QR, hệ thống sẽ mở trang giới thiệu điểm đến, video,
-            hoạt động nổi bật và AI Guide.
+            Sau khi quét QR, hệ thống sẽ mở video giới thiệu, chọn địa điểm nổi bật,
+            chat với AI Guide và kết thúc trải nghiệm.
           </p>
         </div>
 

@@ -8,8 +8,8 @@ function destinationText(destination) {
 
   return [
     destination.short_description,
-    destination.highlight ? `Diem noi bat: ${destination.highlight}` : '',
-    destination.best_time ? `Thoi diem dep: ${destination.best_time}` : '',
+    destination.highlight ? `Điểm nổi bật: ${destination.highlight}` : '',
+    destination.best_time ? `Thời điểm đẹp: ${destination.best_time}` : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -17,7 +17,7 @@ function destinationText(destination) {
 
 export default function LandingPage({ destination, onBack, onNext }) {
   const [destinations, setDestinations] = useState(destination ? [destination] : []);
-  const [selectedId, setSelectedId] = useState(destination?.id || null);
+  const [selectedId, setSelectedId] = useState(null);
   const [typedText, setTypedText] = useState('');
 
   useEffect(() => {
@@ -28,10 +28,9 @@ export default function LandingPage({ destination, onBack, onNext }) {
 
         if (Array.isArray(data.destinations) && data.destinations.length) {
           setDestinations(data.destinations);
-          setSelectedId((current) => current || data.destinations[0].id);
         }
       } catch (e) {
-        setSelectedId((current) => current || destination?.id || null);
+        setDestinations(destination ? [destination] : []);
       }
     }
 
@@ -39,8 +38,8 @@ export default function LandingPage({ destination, onBack, onNext }) {
   }, [destination]);
 
   const selectedDestination = useMemo(() => {
-    return destinations.find((item) => item.id === selectedId) || destinations[0] || destination || null;
-  }, [destination, destinations, selectedId]);
+    return destinations.find((item) => item.id === selectedId) || null;
+  }, [destinations, selectedId]);
 
   const heroImageUrl = assetUrl(selectedDestination?.image_url);
   const fullText = destinationText(selectedDestination);
@@ -74,18 +73,20 @@ export default function LandingPage({ destination, onBack, onNext }) {
           </button>
 
           <div className="badge">
-            <Sparkles size={15} /> Dia diem noi bat
+            <Sparkles size={15} /> Địa điểm nổi bật
           </div>
 
-          <h1>{selectedDestination?.name || 'Nui Ba Den'}</h1>
+          <h1>{selectedDestination?.name || 'Chọn địa điểm nổi bật'}</h1>
           <p className="typewriter-text">
-            {typedText}
-            <span className="typing-cursor" />
+            {selectedDestination
+              ? typedText
+              : 'Bấm vào một địa điểm bên dưới để xem phần giới thiệu chạy như đang gõ phím.'}
+            {selectedDestination && <span className="typing-cursor" />}
           </p>
         </div>
 
         <div className="hero-actions">
-          <div className="featured-strip" aria-label="Chon dia diem noi bat">
+          <div className="featured-strip" aria-label="Chọn địa điểm nổi bật">
             {destinations.map((item) => {
               const imageUrl = assetUrl(item.image_url);
               const isActive = item.id === selectedDestination?.id;
@@ -110,16 +111,16 @@ export default function LandingPage({ destination, onBack, onNext }) {
           <div className="glass-card landing-info-card">
             <b>
               <MapPin size={16} style={{ verticalAlign: 'middle' }} />{' '}
-              {selectedDestination?.location || 'Tay Ninh, Viet Nam'}
+              {selectedDestination?.location || 'Tây Ninh, Việt Nam'}
             </b>
             <p>
-              Chon dia diem ban quan tam, sau do hoi AI Guide de nhan goi y phu hop
-              voi thoi gian, gia dinh va cach di chuyen.
+              Chọn địa điểm bạn quan tâm, sau đó hỏi AI Guide để nhận gợi ý phù hợp
+              với thời gian, gia đình và cách di chuyển.
             </p>
           </div>
 
-          <button className="primary-btn" onClick={() => onNext(selectedDestination)}>
-            <MessageCircle size={17} style={{ verticalAlign: 'middle' }} /> Hoi AI Guide
+          <button className="primary-btn" disabled={!selectedDestination} onClick={() => onNext(selectedDestination)}>
+            <MessageCircle size={17} style={{ verticalAlign: 'middle' }} /> Hỏi AI Guide
           </button>
         </div>
       </div>

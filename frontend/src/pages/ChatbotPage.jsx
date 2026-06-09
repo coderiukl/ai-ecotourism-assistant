@@ -267,7 +267,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     <div className="phone">
       <div className="page chatbot-page">
         <button className="back-btn" onClick={onBack}>
-          <ArrowLeft size={18} /> Hoạt động
+          <ArrowLeft size={18} /> Địa điểm
         </button>
 
         <div className="topbar">

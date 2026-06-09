@@ -151,6 +151,12 @@ p {
   color: #fff;
 }
 
+.primary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
 .secondary-btn {
   background: #eaf7ef;
   color: #1f875a;

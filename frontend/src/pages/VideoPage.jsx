@@ -17,9 +17,9 @@ export default function VideoPage({ destination, onBack, onNext }) {
         <div className="topbar">
           <div>
             <div className="badge" style={{ color: '#1f875a', background: '#eaf7ef' }}>
-              Video gioi thieu
+              Video giới thiệu
             </div>
-            <h2>Kham pha nhanh Nui Ba Den</h2>
+            <h2>Khám phá nhanh núi Bà Đen</h2>
           </div>
         </div>
 
@@ -37,21 +37,21 @@ export default function VideoPage({ destination, onBack, onNext }) {
         <div className="card">
           <b>AI Guide</b>
           <p>
-            Xem video tong quan truoc, sau do chon cac dia diem noi bat va hoi AI
-            Guide de duoc goi y chi tiet.
+            Xem video tổng quan trước, sau đó chọn các địa điểm nổi bật và hỏi AI
+            Guide để được gợi ý chi tiết.
           </p>
         </div>
 
         <div style={{ height: 18 }} />
 
         <button className="primary-btn" onClick={onNext}>
-          Toi da xem xong
+          Tôi đã xem xong
         </button>
 
         <div style={{ height: 10 }} />
 
         <button className="secondary-btn" onClick={onNext}>
-          <SkipForward size={16} style={{ verticalAlign: 'middle' }} /> Bo qua video
+          <SkipForward size={16} style={{ verticalAlign: 'middle' }} /> Bỏ qua video
         </button>
       </div>
     </div>
