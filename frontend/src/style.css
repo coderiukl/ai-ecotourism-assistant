@@ -243,9 +243,23 @@ p {
 }
 
 .video-page {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  gap: clamp(10px, 2dvh, 18px);
+  overflow: hidden;
   scroll-behavior: smooth;
+}
+
+.video-page .topbar {
+  margin-bottom: 10px;
+}
+
+.video-page h2 {
+  margin-bottom: 0;
+  font-size: 24px;
 }
 
 .video-spotlight {
@@ -275,18 +289,35 @@ p {
 
 .video-page .intro-video-box {
   order: -1;
-  margin: clamp(120px, 22dvh, 210px) 0 clamp(48px, 9dvh, 86px);
+  margin: 0 0 clamp(2px, 1dvh, 8px);
   position: relative;
   z-index: 2;
   box-shadow: 0 22px 48px rgba(9, 45, 33, 0.28);
-  scroll-margin: 160px;
+  scroll-margin: 18px;
 }
 
-.intro-video-strip {
-  height: clamp(72px, 11dvh, 96px);
+.video-page .intro-video-strip {
+  height: clamp(170px, 30dvh, 240px);
+  min-height: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: 26px;
   cursor: pointer;
+}
+
+.video-page .card {
+  padding: 16px;
+  border-radius: 22px;
+}
+
+.video-page .card p {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+
+.video-page .primary-btn,
+.video-page .secondary-btn {
+  min-height: 48px;
+  padding: 13px 16px;
 }
 
 .intro-video-strip .intro-video {

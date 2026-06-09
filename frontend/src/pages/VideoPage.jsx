@@ -3,7 +3,7 @@ import { SkipForward } from 'lucide-react';
 
 import { assetUrl } from '../api';
 
-const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || '/videos/intro.mp4';
+const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || 'https://res.cloudinary.com/df6nsfnjk/video/upload/q_auto/f_auto/v1780989537/intro_nui_ba_den_xzcgcs.mp4';
 
 export default function VideoPage({ destination, onNext }) {
   const posterUrl = assetUrl(destination?.image_url);
@@ -88,13 +88,11 @@ export default function VideoPage({ destination, onNext }) {
           </p>
         </div>
 
-        <div style={{ height: 18 }} />
 
         <button className="primary-btn" onClick={onNext}>
           Tôi đã xem xong
         </button>
 
-        <div style={{ height: 10 }} />
 
         <button className="secondary-btn" onClick={onNext}>
           <SkipForward size={16} style={{ verticalAlign: 'middle' }} /> Bỏ qua video
