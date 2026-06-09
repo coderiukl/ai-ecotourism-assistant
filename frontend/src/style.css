@@ -283,9 +283,9 @@ p {
 }
 
 .intro-video-strip {
-  height: clamp(48px, 7dvh, 58px);
+  height: clamp(72px, 11dvh, 96px);
   border: 0;
-  border-radius: 999px;
+  border-radius: 24px;
   cursor: pointer;
 }
 
