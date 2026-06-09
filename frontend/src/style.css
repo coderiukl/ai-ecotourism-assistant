@@ -248,6 +248,31 @@ p {
   scroll-behavior: smooth;
 }
 
+.video-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.74);
+  cursor: pointer;
+  animation: spotlight-fade 0.18s ease-out both;
+}
+
+.video-spotlight-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: min(72dvh, 520px);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+  cursor: default;
+  animation: video-rise 0.24s cubic-bezier(0.2, 0.82, 0.2, 1) both;
+}
+
 .video-page .intro-video-box {
   order: -1;
   margin: clamp(120px, 22dvh, 210px) 0 clamp(48px, 9dvh, 86px);
@@ -255,6 +280,17 @@ p {
   z-index: 2;
   box-shadow: 0 22px 48px rgba(9, 45, 33, 0.28);
   scroll-margin: 160px;
+}
+
+.intro-video-strip {
+  height: clamp(48px, 7dvh, 58px);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.intro-video-strip .intro-video {
+  pointer-events: none;
 }
 
 .intro-video-box {
@@ -270,6 +306,28 @@ p {
   display: block;
   object-fit: cover;
   background: #123c2e;
+}
+
+@keyframes spotlight-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes video-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .play {

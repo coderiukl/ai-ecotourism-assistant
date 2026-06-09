@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SkipForward } from 'lucide-react';
 
 import { assetUrl } from '../api';
@@ -7,23 +7,59 @@ const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || '/videos/intro.m
 
 export default function VideoPage({ destination, onNext }) {
   const posterUrl = assetUrl(destination?.image_url);
+  const [isVideoRaised, setIsVideoRaised] = useState(true);
   const pageRef = useRef(null);
   const videoBoxRef = useRef(null);
-  const videoRef = useRef(null);
+  const raisedVideoRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     pageRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [destination?.id]);
+
+  useEffect(() => {
+    if (!isVideoRaised) return undefined;
 
     requestAnimationFrame(() => {
-      videoBoxRef.current?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
-      videoRef.current?.play().catch(() => {});
+      raisedVideoRef.current?.play().catch(() => {});
     });
-  }, [destination?.id]);
+
+    return undefined;
+  }, [isVideoRaised]);
+
+  function lowerVideo() {
+    raisedVideoRef.current?.pause();
+    setIsVideoRaised(false);
+    requestAnimationFrame(() => {
+      videoBoxRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  function raiseVideo() {
+    setIsVideoRaised(true);
+  }
 
   return (
     <div className="phone">
       <div className="page video-page" ref={pageRef}>
+        {isVideoRaised && (
+          <div className="video-spotlight" onClick={lowerVideo} role="presentation">
+            <div className="video-spotlight-player" onClick={(event) => event.stopPropagation()}>
+              <video
+                ref={raisedVideoRef}
+                className="intro-video"
+                autoPlay
+                controls
+                muted
+                playsInline
+                poster={posterUrl || undefined}
+                preload="auto"
+                src={INTRO_VIDEO_URL}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="topbar">
           <div>
             <div className="badge" style={{ color: '#1f875a', background: '#eaf7ef' }}>
@@ -33,19 +69,16 @@ export default function VideoPage({ destination, onNext }) {
           </div>
         </div>
 
-        <div className="video-box intro-video-box" ref={videoBoxRef}>
+        <button className="video-box intro-video-box intro-video-strip" onClick={raiseVideo} ref={videoBoxRef} type="button">
           <video
-            ref={videoRef}
             className="intro-video"
-            autoPlay
-            controls
             muted
             playsInline
             poster={posterUrl || undefined}
             preload="metadata"
             src={INTRO_VIDEO_URL}
           />
-        </div>
+        </button>
 
         <div className="card">
           <b>AI Guide</b>
