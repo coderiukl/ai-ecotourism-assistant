@@ -58,18 +58,21 @@ button {
 }
 
 .hero {
-  min-height: 744px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 32px;
-  padding: 28px;
+  padding: 28px 28px 40px;
   color: white;
   background:
     linear-gradient(135deg, rgba(31, 135, 90, 0.92), rgba(104, 180, 95, 0.85)),
     url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80');
   background-position: center;
   background-size: cover;
+  overflow-y: auto;
 }
 
 .hero-actions {
@@ -803,6 +806,10 @@ textarea {
   .hero {
     min-height: 100dvh;
     padding: max(18px, env(safe-area-inset-top)) 18px max(34px, env(safe-area-inset-bottom));
+  }
+
+  .hero {
+    min-height: 0;
   }
 
   .hero {
