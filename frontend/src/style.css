@@ -53,7 +53,7 @@ button {
   width: 100%;
   flex: 1;
   min-height: 744px;
-  padding: 24px;
+  padding: 24px 24px 40px;
   overflow-y: auto;
 }
 
@@ -375,7 +375,7 @@ p {
 .destination-list {
   display: grid;
   gap: 14px;
-  padding-bottom: 8px;
+  padding-bottom: 40px;
 }
 
 .destination-card {
@@ -802,7 +802,7 @@ textarea {
   .page,
   .hero {
     min-height: 100dvh;
-    padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    padding: max(18px, env(safe-area-inset-top)) 18px max(34px, env(safe-area-inset-bottom));
   }
 
   .hero {
