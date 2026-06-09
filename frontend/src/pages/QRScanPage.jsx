@@ -1,6 +1,7 @@
 import { Camera, Leaf, QrCode } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL } from '../api';
+
 const DEMO_QR_CODE = 'ECO_NUI_BA_DEN_001';
 
 export default function QRScanPage({ onSuccess }) {

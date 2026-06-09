@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from .constants import QR_CODES
 from .data_loader import DESTINATIONS, WORKBOOK
 from .memory import session_store
-from .rag import rag_answer, rag_status as get_rag_status
+from .rag import rag_answer, rag_status as get_rag_status, stream_rag_answer
 from .schemas import ChatRequest, QRScanRequest
 
 router = APIRouter()
@@ -71,18 +71,18 @@ async def chat_stream(payload: ChatRequest):
 
     async def event_generator() -> AsyncGenerator[bytes, None]:
         yield b"event: start\ndata: {}\n\n"
-        result = rag_answer(
+        retrieval = {}
+        for event, data in stream_rag_answer(
             payload.message,
             destination_id=payload.destination_id,
             session_id=payload.session_id,
-        )
-        answer = result.get("answer", "")
-        for token in answer:
-            payload_data = json.dumps({"token": token}, ensure_ascii=False)
-            yield f"event: token\ndata: {payload_data}\n\n".encode("utf-8")
-        done_payload = json.dumps(
-            {"retrieval": result.get("retrieval", {})}, ensure_ascii=False
-        )
+        ):
+            if event == "token":
+                payload_data = json.dumps({"token": data}, ensure_ascii=False)
+                yield f"event: token\ndata: {payload_data}\n\n".encode("utf-8")
+            elif event == "done":
+                retrieval = data
+        done_payload = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
         yield f"event: done\ndata: {done_payload}\n\n".encode("utf-8")
 
     return StreamingResponse(

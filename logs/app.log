@@ -322,3 +322,18 @@
 2026-06-03 00:25:31,155 INFO [watchfiles.main] 5 changes detected
 2026-06-03 00:25:32,305 INFO [watchfiles.main] 5 changes detected
 2026-06-03 00:25:33,228 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 15:51:25,735 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 15:51:27,168 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-09 16:03:53,988 INFO [app.rag] rag_answer start | session=session_1780995813894 dest=1 q='xin chào' effective_q='xin chào'
+2026-06-09 16:03:54,823 INFO [watchfiles.main] 4 changes detected
+2026-06-09 16:03:56,040 INFO [watchfiles.main] 1 change detected
+2026-06-09 16:04:02,034 INFO [sentence_transformers.base.model] No device provided, using cpu
+2026-06-09 16:04:02,053 INFO [sentence_transformers.base.model] Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+2026-06-09 16:04:41,137 INFO [app.rag] rag_answer retrieved 5 contexts
+2026-06-09 16:04:41,358 INFO [app.rag] Claude stream start | session=session_1780995813894 model=claude-haiku-4-5 base_url=https://api.huyztech.store/v1/ai ua_len=21
+2026-06-09 16:04:47,483 INFO [app.rag] Claude stream done | session=session_1780995813894 answer_len=194
+2026-06-09 16:04:47,483 INFO [app.rag] rag_answer used_claude=True claude_error=None
+2026-06-09 16:04:47,483 INFO [app.rag] rag_answer done | answer_len=194
+2026-06-09 16:09:56,356 INFO [watchfiles.main] 1 change detected
+2026-06-09 16:09:58,420 INFO [watchfiles.main] 5 changes detected
+2026-06-09 16:09:58,814 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log

@@ -475,6 +475,95 @@ def ask_claude(question, contexts, session_id="default"):
     return text.strip() or None
 
 
+def stream_rag_answer(question, destination_id=None, session_id="default"):
+    global _last_claude_error
+
+    question = (question or "").strip()
+    effective_question, expanded_from_context = expand_contextual_query(
+        question,
+        destination_id=destination_id,
+    )
+    clarity = (
+        {"needs_clarification": False, "clarifying_question": ""}
+        if expanded_from_context
+        else check_query_clarity(question)
+    )
+
+    def retrieval_payload(contexts, used_claude, claude_error=None):
+        return {
+            "embedding_backend": _embedding_backend,
+            "embedding_model": RAG_EMBEDDING_MODEL,
+            "embedding_dim": RAG_EMBEDDING_DIM,
+            "vector_store": _vector_store_backend,
+            "top_k": RAG_TOP_K,
+            "used_claude": used_claude,
+            "claude_configured": bool(ANTHROPIC_API_KEY),
+            "claude_model": ANTHROPIC_MODEL,
+            "claude_base_url": ANTHROPIC_BASE_URL,
+            "claude_error": claude_error,
+            "expanded_from_context": expanded_from_context,
+            "effective_question": effective_question,
+            "contexts": contexts,
+        }
+
+    if clarity["needs_clarification"]:
+        answer = clarity["clarifying_question"]
+        for token in answer:
+            yield "token", token
+        if session_id and answer:
+            session_store.append_turn(session_id, question, answer)
+        yield "done", retrieval_payload([], False, "needs_clarification")
+        return
+
+    contexts = retrieve_context(effective_question, destination_id=destination_id) if question else []
+    contexts = merge_contexts(
+        contexts,
+        service_contexts_for_question(effective_question, destination_id=destination_id),
+    )
+
+    if not ANTHROPIC_API_KEY:
+        answer = fallback_rag_answer(question, contexts)
+        for token in answer:
+            yield "token", token
+        if session_id and answer:
+            session_store.append_turn(session_id, question, answer)
+        yield "done", retrieval_payload(contexts, False, "missing_api_key")
+        return
+
+    answer = ""
+    _last_claude_error = None
+    try:
+        client = _get_client()
+        history = session_store.build_history(session_id)
+        messages = build_messages(question, contexts, history)
+        system_prompt = build_system_prompt(contexts)
+
+        with client.messages.stream(
+            model=ANTHROPIC_MODEL,
+            max_tokens=ANTHROPIC_MAX_TOKENS,
+            system=system_prompt,
+            messages=messages,
+        ) as stream:
+            for token in stream.text_stream:
+                answer += token
+                yield "token", token
+    except Exception as exc:
+        _last_claude_error = str(exc)
+        logger.warning("Claude stream error for session %s: %s", session_id, exc)
+        answer = fallback_rag_answer(question, contexts)
+        for token in answer:
+            yield "token", token
+        if session_id and answer:
+            session_store.append_turn(session_id, question, answer)
+        yield "done", retrieval_payload(contexts, False, _last_claude_error)
+        return
+
+    answer = answer.strip()
+    if session_id and answer:
+        session_store.append_turn(session_id, question, answer)
+    yield "done", retrieval_payload(contexts, True, _last_claude_error)
+
+
 def rag_answer(question, destination_id=None, session_id="default"):
     question = (question or "").strip()
     effective_question, expanded_from_context = expand_contextual_query(

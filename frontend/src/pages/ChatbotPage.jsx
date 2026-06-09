@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Bot, Send } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL } from '../api';
 
 function isSafeUrl(url) {
   return /^(https?:\/\/|mailto:|tel:)/i.test(url);
@@ -241,6 +241,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
               if (data.token) {
                 botText += data.token;
                 setStreamingText(botText);
+                setVisibleStreamingText(botText);
                 scrollToBottom('auto');
               }
             } catch {}
