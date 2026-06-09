@@ -1,31 +1,29 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft, SkipForward } from 'lucide-react';
+import { SkipForward } from 'lucide-react';
 
 import { assetUrl } from '../api';
 
 const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || '/videos/intro.mp4';
 
-export default function VideoPage({ destination, onBack, onNext }) {
+export default function VideoPage({ destination, onNext }) {
   const posterUrl = assetUrl(destination?.image_url);
   const pageRef = useRef(null);
   const videoBoxRef = useRef(null);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     pageRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 
     requestAnimationFrame(() => {
-      videoBoxRef.current?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'auto' });
+      videoBoxRef.current?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      videoRef.current?.play().catch(() => {});
     });
   }, [destination?.id]);
 
   return (
     <div className="phone">
       <div className="page video-page" ref={pageRef}>
-        <button className="back-btn" onClick={onBack}>
-          <ArrowLeft size={18} /> QR
-        </button>
-
         <div className="topbar">
           <div>
             <div className="badge" style={{ color: '#1f875a', background: '#eaf7ef' }}>
@@ -37,8 +35,11 @@ export default function VideoPage({ destination, onBack, onNext }) {
 
         <div className="video-box intro-video-box" ref={videoBoxRef}>
           <video
+            ref={videoRef}
             className="intro-video"
+            autoPlay
             controls
+            muted
             playsInline
             poster={posterUrl || undefined}
             preload="metadata"

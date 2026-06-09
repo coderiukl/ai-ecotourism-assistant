@@ -245,11 +245,16 @@ p {
 .video-page {
   display: flex;
   flex-direction: column;
+  scroll-behavior: smooth;
 }
 
 .video-page .intro-video-box {
   order: -1;
-  margin-top: 0;
+  margin: clamp(120px, 22dvh, 210px) 0 clamp(48px, 9dvh, 86px);
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 22px 48px rgba(9, 45, 33, 0.28);
+  scroll-margin: 160px;
 }
 
 .intro-video-box {
