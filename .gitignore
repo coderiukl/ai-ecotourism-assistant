@@ -22,3 +22,5 @@ Thumbs.db
 
 tmp*.md
 *v2.xlsx
+/intro_nui_ba_den.mp4
+ffmpeg2pass-*.log*

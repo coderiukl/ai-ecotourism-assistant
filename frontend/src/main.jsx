@@ -2,20 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import './style.css';
-import ActivitiesPage from './pages/ActivitiesPage';
 import ChatbotPage from './pages/ChatbotPage';
-import DashboardPage from './pages/DashboardPage';
 import LandingPage from './pages/LandingPage';
 import QRScanPage from './pages/QRScanPage';
 import ThankYouPage from './pages/ThankYouPage';
 import VideoPage from './pages/VideoPage';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL } from './api';
 
 function App() {
-  const [step, setStep] = useState(
-    window.location.hash === '#dashboard' ? 'dashboard' : 'qr',
-  );
+  const [step, setStep] = useState('qr');
   const [destination, setDestination] = useState(null);
 
   useEffect(() => {
@@ -31,8 +26,8 @@ function App() {
         });
         const data = await res.json();
         if (data.status === 'valid') {
-          setDestination(null);
-          setStep('dashboard');
+          setDestination(data.destination || null);
+          setStep('video');
           window.history.replaceState({}, '', window.location.pathname);
         }
       } catch (e) {
@@ -47,52 +42,36 @@ function App() {
     <div className="app-shell">
       {step === 'qr' && (
         <QRScanPage
-          onSuccess={() => {
-            setDestination(null);
-            setStep('dashboard');
+          onSuccess={(data) => {
+            setDestination(data || null);
+            setStep('video');
           }}
-        />
-      )}
-
-      {step === 'dashboard' && (
-        <DashboardPage
-          initialDestination={destination}
-          onBack={() => setStep('qr')}
-          onSelect={(data) => {
-            setDestination(data);
-            setStep('landing');
-          }}
-        />
-      )}
-
-      {step === 'landing' && (
-        <LandingPage
-          destination={destination}
-          onBack={() => setStep('dashboard')}
-          onNext={() => setStep('video')}
         />
       )}
 
       {step === 'video' && (
         <VideoPage
           destination={destination}
-          onBack={() => setStep('landing')}
-          onNext={() => setStep('activities')}
+          onBack={() => setStep('qr')}
+          onNext={() => setStep('landing')}
         />
       )}
 
-      {step === 'activities' && (
-        <ActivitiesPage
+      {step === 'landing' && (
+        <LandingPage
           destination={destination}
           onBack={() => setStep('video')}
-          onNext={() => setStep('chatbot')}
+          onNext={(data) => {
+            setDestination(data || destination);
+            setStep('chatbot');
+          }}
         />
       )}
 
       {step === 'chatbot' && (
         <ChatbotPage
           destination={destination}
-          onBack={() => setStep('activities')}
+          onBack={() => setStep('landing')}
           onDone={() => setStep('thankyou')}
         />
       )}
