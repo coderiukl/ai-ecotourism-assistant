@@ -520,6 +520,11 @@ p {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
+.typewriter-text.is-hidden,
+.selected-detail-card p {
+  display: none;
+}
+
 .featured-strip {
   display: flex;
   gap: 10px;

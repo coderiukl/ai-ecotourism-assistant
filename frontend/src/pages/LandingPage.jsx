@@ -153,11 +153,14 @@ export default function LandingPage({ destination, onBack, onNext }) {
           </div>
 
           <h1>{selectedDestination?.name || activeLabel || 'Chọn khu vực'}</h1>
-          <p className="typewriter-text">
+          {selectedDestination && (
+            <p className="typewriter-text">{typedText}<span className="typing-cursor" /></p>
+          )}
+          <p className={selectedDestination ? 'typewriter-text is-hidden' : 'typewriter-text'}>
             {selectedDestination
               ? 'Phần giới thiệu địa điểm đang chạy bên dưới.'
               : activeCategory
-                ? 'Bấm vào một địa điểm bên dưới để xem phần giới thiệu chạy như đang gõ phím.'
+                ? 'Bấm vào một địa điểm bên dưới để xem phần giới thiệu.'
                 : 'Chọn một khu vực để xem các địa điểm nổi bật của Núi Bà Đen.'}
           </p>
         </div>
