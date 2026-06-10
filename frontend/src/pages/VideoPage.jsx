@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SkipForward } from 'lucide-react';
+import { SkipForward, Volume2 } from 'lucide-react';
 
 import { assetUrl } from '../api';
 
@@ -8,9 +8,27 @@ const INTRO_VIDEO_URL = import.meta.env.VITE_INTRO_VIDEO_URL || 'https://res.clo
 export default function VideoPage({ destination, onNext }) {
   const posterUrl = assetUrl(destination?.image_url);
   const [isVideoRaised, setIsVideoRaised] = useState(true);
+  const [needsSoundTap, setNeedsSoundTap] = useState(false);
   const pageRef = useRef(null);
   const videoBoxRef = useRef(null);
   const raisedVideoRef = useRef(null);
+
+  async function playWithSound(video) {
+    if (!video) return;
+    video.muted = false;
+    video.volume = 1;
+
+    try {
+      await video.play();
+      setNeedsSoundTap(false);
+    } catch {
+      video.muted = true;
+      try {
+        await video.play();
+      } catch {}
+      setNeedsSoundTap(true);
+    }
+  }
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -21,11 +39,15 @@ export default function VideoPage({ destination, onNext }) {
     if (!isVideoRaised) return undefined;
 
     requestAnimationFrame(() => {
-      raisedVideoRef.current?.play().catch(() => {});
+      playWithSound(raisedVideoRef.current);
     });
 
     return undefined;
   }, [isVideoRaised]);
+
+  function enableSound() {
+    playWithSound(raisedVideoRef.current);
+  }
 
   function lowerVideo() {
     raisedVideoRef.current?.pause();
@@ -50,12 +72,16 @@ export default function VideoPage({ destination, onNext }) {
                 className="intro-video"
                 autoPlay
                 controls
-                muted
                 playsInline
                 poster={posterUrl || undefined}
                 preload="auto"
                 src={INTRO_VIDEO_URL}
               />
+              {needsSoundTap && (
+                <button className="sound-unlock-btn" onClick={enableSound} type="button">
+                  <Volume2 size={17} /> Bật tiếng
+                </button>
+              )}
             </div>
           </div>
         )}
