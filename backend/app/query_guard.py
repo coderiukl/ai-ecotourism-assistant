@@ -21,7 +21,7 @@ def check_query_clarity(question: str):
     if not question:
         return {
             "needs_clarification": True,
-            "clarifying_question": "Ban nhap cau hoi giup minh nhe.",
+            "clarifying_question": "Bạn nhập câu hỏi giúp mình nhé.",
         }
 
     normalized = slugify(question)
@@ -30,7 +30,7 @@ def check_query_clarity(question: str):
     if normalized in AMBIGUOUS_SHORT_QUERIES and len(tokens) <= 3:
         return {
             "needs_clarification": True,
-            "clarifying_question": "Ban muon hoi ve gia ve, duong di, thoi gian, hay hoat dong nao o Nui Ba Den?",
+            "clarifying_question": "Bạn muốn hỏi về giá vé, đường đi, thời gian hay hoạt động nào ở Núi Bà Đen?",
         }
 
     return {

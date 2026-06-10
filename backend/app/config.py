@@ -10,9 +10,19 @@ except Exception:
 # Paths
 DATA_DIR = Path(__file__).resolve().parent
 
-PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT",DATA_DIR.parent.parent,))
+PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", DATA_DIR.parent.parent))
 
-XLSX_PATH = PROJECT_ROOT / "nui_ba_den_tourism_database.xlsm"
+DATA_FILE = os.getenv("DATA_FILE", "").strip()
+if DATA_FILE:
+    XLSX_PATH = Path(DATA_FILE)
+    if not XLSX_PATH.is_absolute():
+        XLSX_PATH = PROJECT_ROOT / XLSX_PATH
+else:
+    XLSX_CANDIDATES = [
+        PROJECT_ROOT / "nui_ba_den_tourism_database.xlsx",
+        PROJECT_ROOT / "nui_ba_den_tourism_database.xlsm",
+    ]
+    XLSX_PATH = next((path for path in XLSX_CANDIDATES if path.exists()), XLSX_CANDIDATES[0])
 IMAGES_DIR = PROJECT_ROOT / "images"
 
 # ChromaDB

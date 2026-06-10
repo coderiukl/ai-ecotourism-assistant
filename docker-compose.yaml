@@ -1,15 +1,15 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - ./backend/chroma_db:/chroma_db
       - ./images:/images
-      - ./nui_ba_den_tourism_database.xlsm:/nui_ba_den_tourism_database.xlsm
+      - ./nui_ba_den_tourism_database.xlsx:/nui_ba_den_tourism_database.xlsx
       - ./logs:/app/logs
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

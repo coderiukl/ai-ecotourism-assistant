@@ -1,7 +1,9 @@
 ﻿import hashlib
 import json
+import re
 
 from .config import CHROMA_COLLECTION, CHROMA_DIR, RAG_EMBEDDING_DIM, RAG_EMBEDDING_MODEL
+from .text_utils import slugify
 
 MANIFEST_FILE = CHROMA_DIR / "manifest.json"
 
@@ -134,7 +136,35 @@ def ensure_collection(documents, embed_text):
     return collection
 
 
-def query_collection(documents, embed_text, question, top_k, destination_id=None, dest_code=None):
+def _matches_destination(metadata, destination_id=None, dest_codes=None):
+    dest_codes = {str(code) for code in (dest_codes or []) if code}
+    metadata_dest_code = str(metadata.get("dest_code") or "")
+    metadata_destination_id = metadata.get("destination_id")
+
+    if destination_id is not None and metadata_destination_id == destination_id:
+        return True
+    if dest_codes and metadata_dest_code in dest_codes:
+        return True
+    return False
+
+def _is_global(metadata):
+    return not metadata.get("dest_code") and metadata.get("destination_id") is None
+
+def _intent_bonus(question, metadata):
+    tokens = set(re.findall(r"[a-z0-9]+", slugify(question or "")))
+    doc_type = metadata.get("type")
+    if tokens & {"gia", "ve", "phi", "ticket", "price", "cost", "combo", "buffet"}:
+        return 0.6 if doc_type == "service_pricing" else 0.0
+    if doc_type == "service_pricing":
+        return -0.6
+    if tokens & {"choi", "lam", "activity", "activities", "tham", "quan", "check", "in"}:
+        if doc_type == "activity":
+            return 0.4
+        if doc_type == "destination":
+            return 0.6
+    return 0.0
+
+def query_collection(documents, embed_text, question, top_k, destination_id=None, dest_code=None, dest_codes=None):
     collection = ensure_collection(documents, embed_text)
 
     try:
@@ -145,19 +175,16 @@ def query_collection(documents, embed_text, question, top_k, destination_id=None
     if collection_count == 0:
         return None
 
-    where = None
-    if destination_id is not None:
-        where = {"destination_id": destination_id}
-    elif dest_code is not None:
-        where = {"dest_code": dest_code}
+    target_codes = set(dest_codes or [])
+    if dest_code:
+        target_codes.add(dest_code)
 
-    n_results = min(max(top_k * 4, top_k), collection_count)
+    n_results = min(max(top_k * 12, 50), collection_count)
     try:
         result = collection.query(
             query_embeddings=[embed_text(question)],
             n_results=n_results,
             include=["documents", "metadatas", "distances"],
-            where=where,
         )
     except Exception:
         return None
@@ -169,12 +196,15 @@ def query_collection(documents, embed_text, question, top_k, destination_id=None
         distance = result.get("distances", [[]])[0][index]
         score = 1 - float(distance)
 
-        if metadata.get("type") in {"service_pricing", "activity", "faq", "knowledge_base"}:
-            pass
-        if destination_id is not None and metadata.get("destination_id") != destination_id:
+        has_target = destination_id is not None or bool(target_codes)
+        if has_target and not _matches_destination(metadata, destination_id, target_codes) and not _is_global(metadata):
             continue
-        if dest_code is not None and metadata.get("dest_code") != dest_code:
-            continue
+
+        if _matches_destination(metadata, destination_id, target_codes):
+            score += 1.0
+        elif has_target and _is_global(metadata):
+            score -= 0.15
+        score += _intent_bonus(question, metadata)
 
         contexts.append(
             {
@@ -183,6 +213,7 @@ def query_collection(documents, embed_text, question, top_k, destination_id=None
                 "type": metadata.get("type"),
                 "title": metadata.get("title"),
                 "source_url": metadata.get("source_url"),
+                "dest_code": metadata.get("dest_code"),
                 "text": result.get("documents", [[]])[0][index],
             }
         )

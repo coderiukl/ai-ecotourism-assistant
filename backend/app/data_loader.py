@@ -243,6 +243,9 @@ def record_to_knowledge_item(sheet_name, record, index):
     fallback_title = f"{sheet_name} #{index}"
     title = build_title(record, fallback_title)
     source_url = get_first(record, SOURCE_URL_KEYS)
+    dest_code = clean_value(
+        get_first(record, ["dest_id", "dest_code", "place_id", "destination_id"])
+    )
 
     return {
         "kb_id": f"{sheet_name}:{item_id}",
@@ -251,6 +254,7 @@ def record_to_knowledge_item(sheet_name, record, index):
         "content": record_to_text(f"Sheet: {sheet_name}\nTitle: {title}", record),
         "keywords": build_keywords(record),
         "source_url": source_url,
+        "dest_code": dest_code,
         "sheet_name": sheet_name,
         "row_index": index,
     }

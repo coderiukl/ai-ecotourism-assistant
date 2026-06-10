@@ -14,9 +14,7 @@ function renderInline(text, keyPrefix) {
   let match;
 
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
 
     const token = match[0];
     const key = `${keyPrefix}-${parts.length}`;
@@ -54,10 +52,7 @@ function renderInline(text, keyPrefix) {
     lastIndex = match.lastIndex;
   }
 
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
   return parts;
 }
 
@@ -65,11 +60,11 @@ function normalizeMarkdownText(text) {
   const raw = String(text || '')
     .replace(/\r\n?/g, '\n')
     .trim()
-    .replace(/\s*(?:â€¢|•)\s+/g, '\n- ')
+    .replace(/\s*•\s+/g, '\n- ')
     .replace(/([^\n])\s+([-*]\s+)/g, '$1\n$2');
 
   const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
-  const isListLine = (line) => /^(?:[-*]|â€¢|•)\s+/.test(line) || /^\d+\.\s+/.test(line);
+  const isListLine = (line) => /^(?:[-*]|•)\s+/.test(line) || /^\d+\.\s+/.test(line);
   const grouped = [];
 
   lines.forEach((line) => {
@@ -137,7 +132,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   const [messages, setMessages] = useState([
     {
       role: 'bot',
-      text: `Xin chào! Tôi là AI Guide. Bạn có thể hỏi tôi về ${destination?.name || 'địa điểm này'}.`,
+      text: `Xin chào! Mình là AI Guide. Bạn có thể hỏi mình về ${destination?.name || 'địa điểm này'}.`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -148,6 +143,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const prevLoadingRef = useRef(false);
+  const sessionIdRef = useRef(`session_${destination?.id || 'default'}_${Date.now()}`);
 
   useEffect(() => {
     if (!loading && prevLoadingRef.current) {
@@ -203,7 +199,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     setStreamingText('');
     setVisibleStreamingText('');
 
-    const sessionId = `session_${Date.now()}`;
+    const sessionId = sessionIdRef.current;
 
     async function askWithoutStream() {
       const fallbackRes = await fetch(`${API_URL}/api/chat`, {
@@ -232,9 +228,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No reader');
@@ -266,9 +260,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
         }
       }
 
-      if (botText) {
-        setMessages((prev) => [...prev, { role: 'bot', text: botText }]);
-      }
+      if (botText) setMessages((prev) => [...prev, { role: 'bot', text: botText }]);
     } catch (e) {
       try {
         const answer = await askWithoutStream();
@@ -312,9 +304,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
         <div className="quick-questions">
           <button onClick={() => ask('Có gì chơi ở đây?')}>Có gì chơi?</button>
           <button onClick={() => ask('Đi mùa nào đẹp?')}>Đi mùa nào đẹp?</button>
-          <button onClick={() => ask('Có phù hợp cho gia đình không?')}>
-            Phù hợp gia đình?
-          </button>
+          <button onClick={() => ask('Có phù hợp cho gia đình không?')}>Phù hợp gia đình?</button>
         </div>
 
         <div className="chat-box" aria-live="polite" ref={chatBoxRef}>

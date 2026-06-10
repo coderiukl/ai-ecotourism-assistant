@@ -6,44 +6,49 @@ import unicodedata
 MAX_CONTEXT_CHARS = 1200
 MAX_TOTAL_CONTEXT_CHARS = 4200
 
-
 SYSTEM_PROMPT = (
-    "Bạn là Núi Bà AI — trợ lý du lịch của Núi Bà Đen (Tây Ninh), "
-    "trò chuyện tự nhiên như một người bạn địa phương am hiểu nơi này.\n\n"
-    "PHONG CÁCH TRẢ LỜI:\n"
-    "- Thân thiện, gần gũi, dễ hiểu; xưng 'mình' và gọi người dùng là 'bạn'.\n"
-    "- Trả lời như đang tư vấn trực tiếp, không đọc lại dữ liệu thô.\n"
-    "- Ưu tiên câu ngắn, tự nhiên; thường 3-6 dòng.\n"
-    "- Nếu có nhiều thông tin như giá, giờ đẹp, đường đi, lịch trình thì chia bullet ngắn.\n"
-    "- Dùng emoji vừa phải để dễ nhìn, không lạm dụng.\n"
-    "- Không quảng cáo hoa mỹ kiểu 'đẹp nhất thế giới', 'không thể bỏ lỡ'.\n\n"
-    "QUY TẮC AN TOÀN DỮ LIỆU:\n"
-    "1. Chỉ trả lời dựa trên dữ liệu tham khảo được cung cấp. Tuyệt đối không bịa đặt.\n"
-    "2. Nếu chưa có dữ liệu phù hợp, nói rõ: 'Mình chưa có dữ liệu chi tiết về vấn đề này'.\n"
-    "3. Nếu thông tin có thể thay đổi như giá vé, thời tiết, giờ vận hành, hãy nhắc nhẹ nên kiểm tra lại nguồn chính thức.\n"
-    "4. Không nói các câu như 'Theo dữ liệu nội bộ', 'Dựa trên context', 'Dữ liệu cung cấp cho biết'.\n"
-    "5. Nếu người dùng hỏi ngoài phạm vi Núi Bà Đen/Tây Ninh, trả lời lịch sự rằng mình chỉ hỗ trợ tốt nhất về Núi Bà Đen.\n"
+    "Bạn là Núi Bà AI, trợ lý du lịch của Núi Bà Đen (Tây Ninh). "
+    "Bạn trả lời như một người địa phương am hiểu, thân thiện và thực tế.\n\n"
+    "PHONG CÁCH:\n"
+    "- Xưng 'mình', gọi người dùng là 'bạn'.\n"
+    "- Trả lời trực tiếp câu hỏi, 3-6 dòng nếu câu hỏi đơn giản.\n"
+    "- Nếu có giá, giờ, đường đi, lịch trình: dùng bullet ngắn, dễ quét.\n"
+    "- Không quảng cáo quá đà, không nói kiểu đọc dữ liệu thô.\n\n"
+    "QUY TẮC DỮ LIỆU:\n"
+    "1. Chỉ dùng dữ liệu tham khảo được cung cấp, không bịa.\n"
+    "2. Nếu thiếu dữ liệu phù hợp, nói rõ: 'Mình chưa có dữ liệu chi tiết về vấn đề này'.\n"
+    "3. Với giá vé, giờ vận hành, thời tiết, sự kiện: nhắc người dùng kiểm tra lại nguồn chính thức trước khi đi.\n"
+    "4. Không nói 'theo dữ liệu nội bộ', 'dựa trên context' hoặc câu tương tự.\n"
+    "5. Nếu câu hỏi ngoài Núi Bà Đen/Tây Ninh, lịch sự giới hạn phạm vi hỗ trợ.\n"
+    "6. Khi câu hỏi nhắc một địa điểm cụ thể, ưu tiên trả lời đúng địa điểm đó; không trộn sang địa điểm khác.\n"
 )
 
+FIELD_ALIASES = {
+    "location": ["Vị trí", "location", "area", "address_or_location", "place_name"],
+    "answer": ["Answer hint", "answer", "answer_snippet", "Trả lời"],
+    "short_desc": ["Mô tả ngắn", "description_short", "description", "description_detail", "content", "Nội dung"],
+    "highlight": ["Điểm nổi bật", "highlight"],
+    "best_time": ["Thời điểm đẹp", "best_time", "season_or_time", "opening_time"],
+    "duration": ["Thời lượng", "estimated_duration", "duration"],
+    "transport": ["Di chuyển", "transport", "transport_mode", "navigation_note"],
+    "service_name": ["service_name", "Dịch vụ", "title"],
+    "direction": ["direction"],
+    "customer_type": ["customer_type"],
+    "price_vnd": ["price_vnd", "Price VND"],
+    "adult_price": ["adult_price_vnd", "Giá người lớn"],
+    "child_price": ["child_price_vnd", "Giá trẻ em"],
+    "combo_price": ["combo_price_vnd", "Giá combo"],
+    "note": ["Ghi chú", "note", "conditions", "safety_note", "verification_note"],
+}
 
 def truncate_text(text, max_chars=MAX_CONTEXT_CHARS):
-    """Keep prompt context compact and avoid cutting in the middle of a word."""
     text = str(text or "").strip()
     if len(text) <= max_chars:
         return text
     return text[:max_chars].rsplit(" ", 1)[0].strip() + "..."
 
-
 def build_system_prompt(contexts=None):
-    """Build Anthropic system prompt with compact RAG context.
-
-    Anthropic expects the system prompt in the `system=` argument, not as a
-    message with role='system'.
-    """
-    context_block = _format_contexts(contexts or [])
-    if not context_block:
-        context_block = "(không có dữ liệu liên quan)"
-
+    context_block = _format_contexts(contexts or []) or "(không có dữ liệu liên quan)"
     return (
         SYSTEM_PROMPT
         + "\n\nDỮ LIỆU THAM KHẢO ĐƯỢC PHÉP DÙNG:\n"
@@ -51,19 +56,11 @@ def build_system_prompt(contexts=None):
         + "\n\nHãy trả lời tự nhiên cho người dùng, chỉ dùng dữ liệu ở trên."
     )
 
-
 def build_messages(question, contexts=None, history=None):
-    """Build conversation messages for Anthropic.
-
-    Context is intentionally not placed inside the user message so the model
-    focuses on answering the actual question naturally.
-    """
-    history = history or []
     messages = []
-    messages.extend(history)
+    messages.extend(history or [])
     messages.append({"role": "user", "content": str(question or "").strip()})
     return messages
-
 
 def _format_contexts(contexts):
     blocks = []
@@ -89,7 +86,6 @@ def _format_contexts(contexts):
 
     return "\n\n".join(blocks)
 
-
 def _extract_fields(text):
     lines = [line.strip() for line in str(text or "").split("\n") if line.strip()]
     fields = {}
@@ -98,23 +94,22 @@ def _extract_fields(text):
     for line in lines:
         if ":" in line and not line.startswith("-") and not line.startswith("["):
             key, value = line.split(":", 1)
-            key = key.strip()
-            value = value.strip()
-            fields[key] = value
-            current_key = key
+            current_key = key.strip()
+            fields[current_key] = value.strip()
         elif current_key:
             fields[current_key] = (fields.get(current_key, "") + " " + line).strip()
 
     return fields
 
-
-def _first_value(fields, keys):
-    for key in keys:
-        value = fields.get(key, "")
+def _first_value(fields, names):
+    for name in names:
+        value = fields.get(name, "")
         if value:
-            return value
+            return str(value).strip()
     return ""
 
+def _field(fields, alias_name):
+    return _first_value(fields, FIELD_ALIASES[alias_name])
 
 def _slugify(value):
     value = str(value or "").replace("đ", "d").replace("Đ", "D")
@@ -122,117 +117,111 @@ def _slugify(value):
     ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", "_", ascii_text.lower()).strip("_")
 
-
 def _is_price_question(question):
     tokens = set(_slugify(question).split("_"))
-    return bool(tokens & {"gia", "ve", "phi", "ticket", "price", "cost"})
+    return bool(tokens & {"gia", "ve", "phi", "ticket", "price", "cost", "combo", "buffet"})
 
+def _format_price(value):
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    if re.fullmatch(r"\d+(?:\.0)?", value):
+        return f"{int(float(value)):,}".replace(",", ".") + ".000đ"
+    return value
 
 def _price_hint_answer(question, contexts):
     if not _is_price_question(question):
         return ""
 
-    hints = []
+    lines = []
     seen = set()
+
     for ctx in contexts or []:
         fields = _extract_fields(ctx.get("text", ""))
-        hint = _first_value(fields, ["Answer hint"])
-        if not hint or hint in seen:
-            continue
-        seen.add(hint)
-        hints.append(hint)
+        hint = _field(fields, "answer")
+        if hint:
+            line = hint
+        else:
+            service = _field(fields, "service_name") or ctx.get("title") or "Dịch vụ"
+            direction = _field(fields, "direction")
+            customer = _field(fields, "customer_type")
+            price = (
+                _format_price(_field(fields, "price_vnd"))
+                or _format_price(_field(fields, "adult_price"))
+                or _format_price(_field(fields, "child_price"))
+                or _format_price(_field(fields, "combo_price"))
+            )
+            if not price:
+                continue
+            label = " - ".join(part for part in [service, direction, customer] if part)
+            line = f"{label}: {price}"
 
-    if not hints:
+        if line in seen:
+            continue
+        seen.add(line)
+        lines.append(f"- {line}")
+        if len(lines) >= 8:
+            break
+
+    if not lines:
         return ""
 
-    lines = ["Có nha, mình thấy dữ liệu giá như sau:"]
-    lines.extend(f"- {hint}" for hint in hints[:6])
-    lines.append("Giá có thể thay đổi theo thời điểm, bạn nên kiểm tra lại nguồn chính thức trước khi đi nha.")
-    return "\n".join(lines)
-
+    return "\n".join(
+        ["Mình thấy dữ liệu giá phù hợp như sau:"]
+        + lines
+        + ["Giá có thể thay đổi theo ngày/khung giờ, bạn nên kiểm tra lại Sun World hoặc kênh đặt vé chính thức trước khi đi nha."]
+    )
 
 def fallback_rag_answer(question, contexts=None):
-    """Friendly fallback when Claude is not configured or fails."""
     contexts = contexts or []
     question = str(question or "").strip()
 
     if not question:
-        return "Bạn nhập câu hỏi giúp mình nhé 😊"
+        return "Bạn nhập câu hỏi giúp mình nhé."
 
     if not contexts:
         return (
-            "Mình chưa tìm thấy thông tin phù hợp trong dữ liệu hiện có bạn nhé. "
+            "Mình chưa tìm thấy thông tin phù hợp trong dữ liệu hiện có. "
             "Bạn có thể hỏi cụ thể hơn về giá vé, đường đi, thời điểm tham quan "
-            "hoặc hoạt động trải nghiệm tại Núi Bà Đen."
+            "hoặc hoạt động tại Núi Bà Đen nha."
         )
 
-    price_hint_answer = _price_hint_answer(question, contexts)
-    if price_hint_answer:
-        return price_hint_answer
+    price_answer = _price_hint_answer(question, contexts)
+    if price_answer:
+        return price_answer
 
     ctx = contexts[0] or {}
     title = ctx.get("title") or "Thông tin Núi Bà Đen"
-    text = ctx.get("text", "")
-    fields = _extract_fields(text)
-
-    if not text.strip():
-        return (
-            "Mình chưa có dữ liệu chi tiết về vấn đề này bạn nhé. "
-            "Bạn thử hỏi cụ thể hơn một chút, ví dụ về giá vé, đường đi hoặc hoạt động tham quan nha."
-        )
-
-    location = _first_value(fields, ["Vị trí", "Địa chỉ"])
-    answer_hint = _first_value(fields, ["Answer hint", "Trả lời"])
-    short_desc = _first_value(fields, ["Mô tả ngắn", "Chi tiết", "Nội dung", "Trả lời"])
-    highlights = _first_value(fields, ["Điểm nổi bật"])
-    best_time = _first_value(fields, ["Thời điểm đẹp"])
-    duration = _first_value(fields, ["Thời lượng"])
-    transport = _first_value(fields, ["Di chuyển"])
-    adult_price = _first_value(fields, ["Giá người lớn"])
-    child_price = _first_value(fields, ["Giá trẻ em"])
-    combo_price = _first_value(fields, ["Giá combo"])
-    price_vnd = _first_value(fields, ["Price VND"])
-    customer_type = _first_value(fields, ["Customer type"])
-    note = _first_value(fields, ["Ghi chú", "Lưu ý an toàn", "Xác minh"])
-
-    parts = [f"Có nha, mình gửi bạn thông tin về **{title}** nè:"]
+    fields = _extract_fields(ctx.get("text", ""))
 
     details = []
-    if answer_hint:
-        details.append(answer_hint)
+    answer = _field(fields, "answer")
+    location = _field(fields, "location")
+    short_desc = _field(fields, "short_desc")
+    highlight = _field(fields, "highlight")
+    best_time = _field(fields, "best_time")
+    duration = _field(fields, "duration")
+    transport = _field(fields, "transport")
+    note = _field(fields, "note")
+
+    if answer:
+        details.append(answer)
     if location:
-        details.append(f"📍 {location}")
+        details.append(f"Vị trí: {location}")
     if short_desc:
-        details.append(f"{short_desc}")
-    if highlights and highlights != short_desc:
-        details.append(f"✨ {highlights}")
+        details.append(short_desc)
+    if highlight and highlight != short_desc:
+        details.append(f"Nổi bật: {highlight}")
     if best_time:
-        details.append(f"🕐 Thời điểm phù hợp: {best_time}")
+        details.append(f"Thời điểm phù hợp: {best_time}")
     if duration:
-        details.append(f"⏱ Thời lượng gợi ý: {duration}")
+        details.append(f"Thời lượng gợi ý: {duration}")
     if transport:
-        details.append(f"🚗 Di chuyển: {transport}")
-    if adult_price:
-        details.append(f"💰 Người lớn: {adult_price}")
-    if child_price:
-        details.append(f"👶 Trẻ em: {child_price}")
-    if combo_price:
-        details.append(f"🎫 Combo: {combo_price}")
-    if price_vnd and not answer_hint:
-        label = f" cho {customer_type}" if customer_type else ""
-        details.append(f"💰 Giá{label}: {price_vnd}.000đ")
+        details.append(f"Di chuyển: {transport}")
     if note:
-        details.append(f"📌 Lưu ý: {note}")
+        details.append(f"Lưu ý: {note}")
 
     if not details:
-        details.append(truncate_text(text, max_chars=700))
+        details.append(truncate_text(ctx.get("text", ""), max_chars=700))
 
-    parts.extend(details[:8])
-
-    if adult_price or child_price or combo_price or price_vnd or answer_hint:
-        parts.append("Giá có thể thay đổi theo thời điểm, bạn nên kiểm tra lại nguồn chính thức trước khi đi nha.")
-
-    if len(contexts) > 1:
-        parts.append("Bạn muốn mình nói kỹ hơn phần giá vé, đường đi hay lịch trình tham quan không?")
-
-    return "\n".join(parts)
+    return "\n".join([f"Mình gửi bạn thông tin về **{title}**:"] + details[:7])
