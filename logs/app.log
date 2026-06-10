@@ -349,3 +349,5 @@
 2026-06-09 16:24:55,603 WARNING [app.rag] Claude stream error for session test2: Connection error.
 2026-06-09 16:25:50,618 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
 2026-06-09 16:25:56,814 WARNING [app.rag] Claude stream error for session test3: Connection error.
+2026-06-10 12:25:56,684 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log
+2026-06-10 12:25:56,687 INFO [app.main] Logging ready -> D:\ai_ecotourism_mvp\logs\app.log

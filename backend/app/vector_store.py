@@ -1,9 +1,8 @@
 ﻿import hashlib
 import json
-import re
 
 from .config import CHROMA_COLLECTION, CHROMA_DIR, RAG_EMBEDDING_DIM, RAG_EMBEDDING_MODEL
-from .text_utils import slugify
+from .domain import intent_bonus
 
 MANIFEST_FILE = CHROMA_DIR / "manifest.json"
 
@@ -150,20 +149,6 @@ def _matches_destination(metadata, destination_id=None, dest_codes=None):
 def _is_global(metadata):
     return not metadata.get("dest_code") and metadata.get("destination_id") is None
 
-def _intent_bonus(question, metadata):
-    tokens = set(re.findall(r"[a-z0-9]+", slugify(question or "")))
-    doc_type = metadata.get("type")
-    if tokens & {"gia", "ve", "phi", "ticket", "price", "cost", "combo", "buffet"}:
-        return 0.6 if doc_type == "service_pricing" else 0.0
-    if doc_type == "service_pricing":
-        return -0.6
-    if tokens & {"choi", "lam", "activity", "activities", "tham", "quan", "check", "in"}:
-        if doc_type == "activity":
-            return 0.4
-        if doc_type == "destination":
-            return 0.6
-    return 0.0
-
 def query_collection(documents, embed_text, question, top_k, destination_id=None, dest_code=None, dest_codes=None):
     collection = ensure_collection(documents, embed_text)
 
@@ -204,7 +189,7 @@ def query_collection(documents, embed_text, question, top_k, destination_id=None
             score += 1.0
         elif has_target and _is_global(metadata):
             score -= 0.15
-        score += _intent_bonus(question, metadata)
+        score += intent_bonus(question, metadata)
 
         contexts.append(
             {
