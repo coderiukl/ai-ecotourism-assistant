@@ -11,3 +11,4 @@ anthropic
 httpx
 asyncpg
 psycopg2
+sqlalchemy
