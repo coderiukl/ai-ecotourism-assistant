@@ -9,3 +9,5 @@ chromadb
 python-dotenv
 anthropic
 httpx
+asyncpg
+psycopg2

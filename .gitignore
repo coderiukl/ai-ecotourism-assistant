@@ -15,12 +15,17 @@ node_modules/
 
 # Vector store (rebuilt on startup)
 chroma_db/
+backend/chroma_db/
+
+# Local runtime files
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
 tmp*.md
-*v2.xlsx
 /intro_nui_ba_den.mp4
-ffmpeg2pass-*.log*
+/nui_ba_den_tourism_database.xlsx
+*.xlsx
+/images

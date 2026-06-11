@@ -1,0 +1,14 @@
+.git
+.env
+backend/.env
+frontend/.env
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/node_modules/
+**/dist/
+logs/
+backend/chroma_db/
+images/
+nui_ba_den_tourism_database.xlsx
+*.xlsx

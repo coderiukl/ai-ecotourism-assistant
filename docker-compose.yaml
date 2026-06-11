@@ -5,30 +5,27 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
-      - ./backend/chroma_db:/chroma_db
-      - ./images:/images
-      - ./nui_ba_den_tourism_database.xlsx:/nui_ba_den_tourism_database.xlsx
-      - ./logs:/app/logs
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - CHROMA_COLLECTION=nui_ba_den_rag
-      - ANTHROPIC_MODEL=claude-haiku-4-5
     env_file:
       - ./backend/.env
+    environment:
+      PROJECT_ROOT: /app
+      DATA_PATH: /app/no-local-data.xlsx
+      IMAGES_DIR: /app/no-local-images
+      CHROMA_PATH: /tmp/chroma_db
+      CHROMA_COLLECTION: nui_ba_den_rag
+    volumes:
+      - chroma_data:/tmp/chroma_db
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_BACKEND_URL=http://backend:8000
     depends_on:
       - backend
+
+volumes:
+  chroma_data:

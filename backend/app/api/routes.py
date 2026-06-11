@@ -1,0 +1,100 @@
+﻿from __future__ import annotations
+
+import json
+import logging
+from collections.abc import AsyncGenerator
+
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+
+from app.db import postgres
+from app.rag.retriever import retrieve, status as rag_status
+from app.rag.vector_store import rebuild_collection
+from app.schemas import ChatRequest, QRScanRequest
+from app.services import chat_service, llm
+from app.services.excel_loader import destinations, stats as data_stats
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+QR_CODES = {"ECO_NUI_BA_DEN_001": {"destination_id": 1, "expired": False}}
+
+
+async def _safe_save_chat(session_id: str, destination_id: int | None, question: str, answer: str, metadata: dict) -> None:
+    try:
+        await postgres.save_chat(session_id, destination_id, question, answer, metadata)
+    except Exception as exc:
+        logger.warning("Chat persistence skipped: %s", exc)
+
+
+@router.get("/")
+def root():
+    return {
+        "message": "AI Ecotourism Assistant backend is running",
+        "data": data_stats(),
+        "postgres_enabled": postgres.enabled(),
+    }
+
+
+@router.post("/api/qr/scan")
+def scan_qr(payload: QRScanRequest):
+    qr = QR_CODES.get(payload.qr_code.strip())
+    if not qr:
+        return {"status": "invalid", "message": "QR không thuộc hệ thống."}
+    if qr["expired"]:
+        return {"status": "expired", "message": "QR đã hết hạn."}
+    return {"status": "valid", "message": "Quét QR thành công.", "destination": destinations().get(qr["destination_id"], {})}
+
+
+@router.get("/api/destinations")
+def list_destinations():
+    values = list(destinations().values())
+    return {"total": len(values), "destinations": values}
+
+
+@router.get("/api/destinations/{destination_id}")
+def get_destination(destination_id: int):
+    return destinations().get(destination_id, {})
+
+
+@router.post("/api/chat")
+async def chat(payload: ChatRequest):
+    result = await chat_service.answer(payload.message, payload.destination_id, payload.session_id)
+    await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, result["answer"], result["retrieval"])
+    return result
+
+
+@router.post("/api/chat/stream")
+async def chat_stream(payload: ChatRequest):
+    contexts = retrieve(payload.message)
+
+    async def events() -> AsyncGenerator[bytes, None]:
+        answer = ""
+        yield b"event: start\ndata: {}\n\n"
+        async for token in llm.stream(payload.message, contexts):
+            answer += token
+            body = json.dumps({"token": token}, ensure_ascii=False)
+            yield f"event: token\ndata: {body}\n\n".encode("utf-8")
+        retrieval = {"contexts": contexts, "used_llm": llm.configured(), "destination_id": payload.destination_id}
+        await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, answer, retrieval)
+        body = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
+        yield f"event: done\ndata: {body}\n\n".encode("utf-8")
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/api/rag/status")
+def get_rag_status():
+    return rag_status()
+
+
+@router.post("/api/rag/rebuild")
+def rebuild_rag():
+    try:
+        return rebuild_collection()
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@router.post("/api/rag/chat")
+async def rag_chat(payload: ChatRequest):
+    return await chat(payload)

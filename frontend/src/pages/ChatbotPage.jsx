@@ -56,20 +56,41 @@ function renderInline(text, keyPrefix) {
   return parts;
 }
 
+function isMarkdownTableLine(line) {
+  const value = String(line || '').trim();
+  return value.startsWith('|') && value.endsWith('|') && value.split('|').length >= 4;
+}
+
+function isMarkdownDividerLine(line) {
+  return /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(String(line || '').trim());
+}
+
+function splitMarkdownRow(line) {
+  return String(line || '')
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
 function normalizeMarkdownText(text) {
   const raw = String(text || '')
     .replace(/\r\n?/g, '\n')
     .trim()
-    .replace(/\s*•\s+/g, '\n- ')
-    .replace(/([^\n])\s+([-*]\s+)/g, '$1\n$2');
+    .replace(/(^|\n)\s*\u2022\s+/g, '$1- ');
 
   const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
-  const isListLine = (line) => /^(?:[-*]|•)\s+/.test(line) || /^\d+\.\s+/.test(line);
+  const lineType = (line) => {
+    if (isMarkdownTableLine(line) || isMarkdownDividerLine(line)) return 'table';
+    if (/^(?:[-*]|\u2022)\s+/.test(line) || /^\d+\.\s+/.test(line)) return 'list';
+    return 'text';
+  };
   const grouped = [];
 
   lines.forEach((line) => {
     const prev = grouped[grouped.length - 1];
-    if (prev && isListLine(prev) !== isListLine(line)) grouped.push('');
+    if (prev && lineType(prev) !== lineType(line)) grouped.push('');
     grouped.push(line);
   });
 
@@ -87,15 +108,44 @@ function MarkdownMessage({ text }) {
 
         if (!lines.length) return null;
 
+        if (lines.length >= 2 && isMarkdownTableLine(lines[0]) && isMarkdownDividerLine(lines[1])) {
+          const headers = splitMarkdownRow(lines[0]);
+          const rows = lines.slice(2).filter(isMarkdownTableLine).map((line) => splitMarkdownRow(line));
+          return (
+            <div className="markdown-table-wrap" key={key}>
+              <table>
+                <thead>
+                  <tr>
+                    {headers.map((header, cellIndex) => (
+                      <th key={`${key}-h-${cellIndex}`}>{renderInline(header, `${key}-h-${cellIndex}`)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rowIndex) => (
+                    <tr key={`${key}-r-${rowIndex}`}>
+                      {headers.map((_, cellIndex) => (
+                        <td key={`${key}-r-${rowIndex}-${cellIndex}`}>
+                          {renderInline(row[cellIndex] || '', `${key}-r-${rowIndex}-${cellIndex}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
         if (/^\$\$[\s\S]*\$\$$/.test(block.trim())) {
           return <div className="math-block" key={key}>{block.trim().slice(2, -2).trim()}</div>;
         }
 
-        if (lines.every((line) => /^[-*]\s+/.test(line)) || lines.every((line) => /^•\s+/.test(line))) {
+        if (lines.every((line) => /^[-*]\s+/.test(line) || /^\u2022\s+/.test(line))) {
           return (
             <ul key={key}>
               {lines.map((line, itemIndex) => {
-                const clean = line.replace(/^[-*]\s+/, '').replace(/^•\s+/, '');
+                const clean = line.replace(/^[-*]\s+/, '').replace(/^\u2022\s+/, '');
                 return <li key={`${key}-${itemIndex}`}>{renderInline(clean, `${key}-${itemIndex}`)}</li>;
               })}
             </ul>
@@ -344,3 +394,6 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     </div>
   );
 }
+
+
+

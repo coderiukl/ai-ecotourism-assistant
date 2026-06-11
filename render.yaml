@@ -2,11 +2,33 @@ services:
   - type: web
     name: ai-ecotourism-backend
     runtime: docker
-    dockerfilePath: backend/Dockerfile
+    dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     plan: free
     region: singapore
     healthCheckPath: /
     envVars:
-      - key: ANTHROPIC_API_KEY
+      - key: DATABASE_URL
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: PROJECT_ROOT
+        value: /app
+      - key: DATA_PATH
+        value: /app/no-local-data.xlsx
+      - key: IMAGES_DIR
+        value: /app/no-local-images
+      - key: CHROMA_PATH
+        value: /tmp/chroma_db
+      - key: CHROMA_COLLECTION
+        value: nui_ba_den_rag
+      - key: EMBEDDING_ALLOW_DOWNLOAD
+        value: false
+      - key: RAG_TOP_K
+        value: 6
+      - key: CORS_ORIGINS
+        value: https://ai-ecotourism-assistant.vercel.app,http://localhost:5173
