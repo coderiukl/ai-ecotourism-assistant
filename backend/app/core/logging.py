@@ -18,6 +18,4 @@ def configure_logging() -> None:
     file_handler.setFormatter(formatter)
 
     logging.basicConfig(level=LOG_LEVEL, handlers=[stream_handler, file_handler], force=True)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("chromadb").setLevel(logging.WARNING)
