@@ -21,7 +21,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: http://localhost:8000
+        VITE_API_URL: https://ai-ecotourism-backend.onrender.com
     ports:
       - "5173:5173"
     depends_on:
