@@ -26,6 +26,8 @@ services:
         value: /tmp/chroma_db
       - key: CHROMA_COLLECTION
         value: nui_ba_den_rag
+      - key: AUTO_BUILD_CHROMA_ON_STARTUP
+        value: true
       - key: EMBEDDING_ALLOW_DOWNLOAD
         value: false
       - key: RAG_TOP_K
