@@ -39,18 +39,12 @@ def rebuild_collection() -> dict[str, Any]:
     _last_rebuild = {"status": "running"}
     docs = rag_documents()
     try:
-        chroma_client = client()
-        try:
-            chroma_client.delete_collection(CHROMA_COLLECTION)
-        except Exception:
-            pass
-        coll = chroma_client.get_or_create_collection(name=CHROMA_COLLECTION, metadata={"hnsw:space": "cosine"})
-        collection.cache_clear()
+        coll = collection()
 
-        batch_size = 32
+        batch_size = 16
         for start in range(0, len(docs), batch_size):
             batch = docs[start:start + batch_size]
-            coll.add(
+            coll.upsert(
                 ids=[item["id"] for item in batch],
                 documents=[item["text"] for item in batch],
                 metadatas=[_metadata(item) for item in batch],
@@ -113,5 +107,8 @@ def status() -> dict[str, Any]:
         "chroma_path": str(CHROMA_PATH),
         "collection": CHROMA_COLLECTION,
         "collection_count": count,
+        "source_documents": len(rag_documents()),
+        "index_ready": count > 0,
+        "rebuild": _last_rebuild,
         "error": error,
     }
