@@ -4,12 +4,12 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from app.db import postgres
 from app.rag.retriever import retrieve, status as rag_status
-from app.rag.vector_store import rebuild_collection
+from app.rag.vector_store import rebuild_collection, rebuild_status
 from app.schemas import ChatRequest, QRScanRequest
 from app.services import chat_service, llm
 from app.services.excel_loader import destinations, stats as data_stats
@@ -94,9 +94,17 @@ def get_rag_status():
 
 
 @router.post("/api/rag/rebuild")
-def rebuild_rag():
+def rebuild_rag(background_tasks: BackgroundTasks):
+    current = rebuild_status()
+    if current.get("status") == "running":
+        return current
+    background_tasks.add_task(rebuild_collection)
+    return {"status": "queued", "message": "Chroma rebuild started in background."}
+
+@router.get("/api/rag/rebuild/status")
+def get_rebuild_status():
     try:
-        return rebuild_collection()
+        return rebuild_status()
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 

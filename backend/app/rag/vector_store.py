@@ -9,6 +9,7 @@ from app.rag.embeddings import embed_text
 from app.services.excel_loader import rag_documents
 
 logger = logging.getLogger(__name__)
+_last_rebuild: dict[str, Any] = {"status": "idle"}
 
 
 def _metadata(document: dict[str, Any]) -> dict[str, str | int | float | bool]:
@@ -34,26 +35,38 @@ def collection():
 
 
 def rebuild_collection() -> dict[str, Any]:
+    global _last_rebuild
+    _last_rebuild = {"status": "running"}
     docs = rag_documents()
-    chroma_client = client()
     try:
-        chroma_client.delete_collection(CHROMA_COLLECTION)
-    except Exception:
-        pass
-    coll = chroma_client.get_or_create_collection(name=CHROMA_COLLECTION, metadata={"hnsw:space": "cosine"})
-    collection.cache_clear()
+        chroma_client = client()
+        try:
+            chroma_client.delete_collection(CHROMA_COLLECTION)
+        except Exception:
+            pass
+        coll = chroma_client.get_or_create_collection(name=CHROMA_COLLECTION, metadata={"hnsw:space": "cosine"})
+        collection.cache_clear()
 
-    batch_size = 128
-    for start in range(0, len(docs), batch_size):
-        batch = docs[start:start + batch_size]
-        coll.add(
-            ids=[item["id"] for item in batch],
-            documents=[item["text"] for item in batch],
-            metadatas=[_metadata(item) for item in batch],
-            embeddings=[embed_text(item["text"]) for item in batch],
-        )
-    logger.info("Chroma collection rebuilt: %s docs", len(docs))
-    return status()
+        batch_size = 32
+        for start in range(0, len(docs), batch_size):
+            batch = docs[start:start + batch_size]
+            coll.add(
+                ids=[item["id"] for item in batch],
+                documents=[item["text"] for item in batch],
+                metadatas=[_metadata(item) for item in batch],
+                embeddings=[embed_text(item["text"]) for item in batch],
+            )
+            _last_rebuild = {"status": "running", "processed": min(start + batch_size, len(docs)), "total": len(docs)}
+        result = status()
+        _last_rebuild = {"status": "done", **result}
+        logger.info("Chroma collection rebuilt: %s docs", len(docs))
+        return result
+    except Exception as exc:
+        _last_rebuild = {"status": "error", "message": str(exc)}
+        raise
+
+def rebuild_status() -> dict[str, Any]:
+    return _last_rebuild
 
 
 def ensure_index() -> None:
