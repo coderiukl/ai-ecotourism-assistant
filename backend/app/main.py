@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
-from app.core.config import AUTO_BUILD_CHROMA_ON_STARTUP, CORS_ORIGINS, IMAGES_DIR
+from app.core.config import AUTO_BUILD_CHROMA_ON_STARTUP, CORS_ORIGIN_REGEX, CORS_ORIGINS, IMAGES_DIR
 from app.core.logging import configure_logging
 from app.db import postgres
 
@@ -55,10 +55,16 @@ def create_app() -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
+        allow_origin_regex=CORS_ORIGIN_REGEX,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
     if IMAGES_DIR.exists():
         application.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
     application.include_router(router)

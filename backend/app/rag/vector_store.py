@@ -58,8 +58,8 @@ def rebuild_collection() -> dict[str, Any]:
 
 def ensure_index() -> None:
     coll = collection()
-    if coll.count() == 0 and rag_documents():
-        rebuild_collection()
+    if coll.count() == 0:
+        logger.warning("Chroma collection is empty; skipping rebuild during request")
 
 
 def query(question: str, top_k: int = RAG_TOP_K) -> list[dict[str, Any]]:

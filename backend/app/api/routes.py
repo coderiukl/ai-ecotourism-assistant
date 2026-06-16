@@ -30,6 +30,12 @@ async def _safe_save_chat(session_id: str, destination_id: int | None, question:
 def root():
     return {
         "message": "AI Ecotourism Assistant backend is running",
+        "postgres_enabled": postgres.enabled(),
+    }
+
+@router.get("/api/status")
+def api_status():
+    return {
         "data": data_stats(),
         "postgres_enabled": postgres.enabled(),
     }

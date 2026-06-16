@@ -57,6 +57,27 @@ def _intent_bonus(question: str, document: dict[str, Any]) -> float:
 def _memory_index() -> list[dict[str, Any]]:
     return [{**document, "embedding": embed_text(document["text"])} for document in rag_documents()]
 
+def _lexical_query(question: str, top_k: int) -> list[dict[str, Any]]:
+    scored = []
+    for document in rag_documents():
+        score = _lexical_bonus(question, document["text"]) + _intent_bonus(question, document)
+        scored.append((score, document))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [
+        {
+            "id": doc["id"],
+            "score": round(score, 4),
+            "sheet": doc.get("sheet"),
+            "type": doc.get("type"),
+            "title": doc.get("title"),
+            "dest_code": doc.get("dest_code"),
+            "source_url": doc.get("source_url"),
+            "text": doc.get("text"),
+        }
+        for score, doc in scored[:top_k]
+        if score > 0
+    ]
+
 
 def _memory_query(question: str, top_k: int) -> list[dict[str, Any]]:
     query_embedding = embed_text(question)
@@ -96,7 +117,7 @@ def retrieve(question: str, top_k: int = RAG_TOP_K) -> list[dict[str, Any]]:
             return _rerank(question, contexts, top_k)
     except Exception:
         pass
-    return _memory_query(question, top_k)
+    return _lexical_query(question, top_k)
 
 
 def status() -> dict[str, Any]:

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import asyncio
 from typing import Any
 
 try:
@@ -34,8 +35,11 @@ async def connect() -> None:
         return
     try:
         dsn, kwargs = _normalize_dsn()
-        _pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5, **kwargs)
-        await migrate()
+        _pool = await asyncio.wait_for(
+            asyncpg.create_pool(dsn=dsn, min_size=0, max_size=2, timeout=5, command_timeout=10, **kwargs),
+            timeout=8,
+        )
+        await asyncio.wait_for(migrate(), timeout=10)
         logger.info("Postgres connected")
     except Exception as exc:
         _pool = None

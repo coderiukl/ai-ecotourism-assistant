@@ -54,4 +54,5 @@ OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 CORS_ORIGINS = [item.strip() for item in os.getenv("CORS_ORIGINS", "*").split(",") if item.strip()]
+CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX", "").strip() or None
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
