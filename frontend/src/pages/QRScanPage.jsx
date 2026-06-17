@@ -52,21 +52,10 @@ export default function QRScanPage({ onSuccess }) {
 
         <div className="qr-frame">
           <img className="qr-code" src={qrImageUrl} alt={`QR demo ${DEMO_QR_CODE}`} />
-          {/* <span className="qr-label">{DEMO_QR_CODE}</span> */}
         </div>
-
-        <div className="card">
-          <b>📌 Hướng dẫn</b>
-          <p className="small-text">
-            Sau khi quét QR, hệ thống sẽ mở video giới thiệu, chọn địa điểm nổi bật,
-            chat với AI Guide và kết thúc trải nghiệm.
-          </p>
-        </div>
-
-        <div style={{ height: 18 }} />
 
         <button className="primary-btn" onClick={handleDemoScan}>
-          <QrCode size={17} style={{ verticalAlign: 'middle' }} /> Quét QR demo
+          <QrCode size={17} style={{ verticalAlign: 'middle' }} /> Quét QR
         </button>
       </div>
     </div>
