@@ -1,37 +1,14 @@
-import { Camera, Leaf, QrCode } from 'lucide-react';
-
-import { API_URL } from '../api';
+import { Camera, Leaf } from 'lucide-react';
 
 const DEMO_QR_CODE = 'ECO_NUI_BA_DEN_001';
 
-export default function QRScanPage({ onSuccess }) {
+export default function QRScanPage() {
   const qrTargetUrl = `${window.location.origin}${window.location.pathname}?qr=${encodeURIComponent(
     DEMO_QR_CODE,
   )}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
     qrTargetUrl,
   )}`;
-
-  async function handleDemoScan() {
-    try {
-      const res = await fetch(`${API_URL}/api/qr/scan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_code: DEMO_QR_CODE }),
-      });
-
-      const data = await res.json();
-
-      if (data.status === 'valid') {
-        onSuccess(data.destination);
-        return;
-      }
-
-      alert(data.message);
-    } catch (e) {
-      alert('Không kết nối được backend. Hãy kiểm tra FastAPI server.');
-    }
-  }
 
   return (
     <div className="phone">
@@ -53,10 +30,6 @@ export default function QRScanPage({ onSuccess }) {
         <div className="qr-frame">
           <img className="qr-code" src={qrImageUrl} alt={`QR demo ${DEMO_QR_CODE}`} />
         </div>
-
-        <button className="primary-btn" onClick={handleDemoScan}>
-          <QrCode size={17} style={{ verticalAlign: 'middle' }} /> Quét QR
-        </button>
       </div>
     </div>
   );
