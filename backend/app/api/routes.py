@@ -33,12 +33,18 @@ def api_status():
 @router.post("/api/qr/scan")
 def scan_qr(payload: QRScanRequest):
     qr = QR_CODES.get(payload.qr_code.strip())
+
     if not qr:
         return {"status": "invalid", "message": "QR không thuộc hệ thống."}
+
     if qr["expired"]:
         return {"status": "expired", "message": "QR đã hết hạn."}
-    return {"status": "valid", "message": "Quét QR thành công.", "destination": postgres.destinations().get(qr["destination_id"], {})}
 
+    return {
+        "status": "valid",
+        "message": "Quét QR thành công.",
+        "destination": postgres.destinations().get(qr["destination_id"], {}),
+    }
 
 @router.get("/api/destinations")
 def list_destinations():
@@ -53,15 +59,29 @@ def get_destination(destination_id: int):
 
 @router.post("/api/chat")
 async def chat(payload: ChatRequest):
-    result = await chat_service.answer(payload.message, payload.destination_id, payload.session_id)
-    await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, result["answer"], result["retrieval"])
+    result = await chat_service.answer(
+        payload.message,
+        payload.destination_id,
+        payload.session_id,
+    )
+
+    await safe_save_chat(
+        payload.session_id,
+        payload.destination_id,
+        payload.message,
+        result["answer"],
+        result["retrieval"],
+    )
+
     return result
 
 
 @router.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest):
     destination = (
-        postgres.destinations().get(payload.destination_id) if payload.destination_id else None
+        postgres.destinations().get(payload.destination_id)
+        if payload.destination_id
+        else None
     )
     contexts = retrieve(payload.message, destination_id=payload.destination_id)
 
@@ -69,7 +89,7 @@ async def chat_stream(payload: ChatRequest):
         answer = ""
 
         yield b"event: start\ndata: {}\n\n"
-        
+
         async for token in llm.stream(payload.message, contexts, destination):
             answer += token
             body = json.dumps({"token": token}, ensure_ascii=False)
@@ -81,12 +101,26 @@ async def chat_stream(payload: ChatRequest):
             "destination_id": payload.destination_id,
             "destination": destination,
         }
-        await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, answer, retrieval)
+
+        await safe_save_chat(
+            payload.session_id,
+            payload.destination_id,
+            payload.message,
+            answer,
+            retrieval,
+        )
 
         body = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
         yield f"event: done\ndata: {body}\n\n".encode("utf-8")
 
-    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/api/rag/status")
