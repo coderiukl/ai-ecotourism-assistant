@@ -15,17 +15,6 @@ from app.services import chat_service, llm
 
 router = APIRouter()
 
-# logger = logging.getLogger(__name__)
-# QR_CODES = {"ECO_NUI_BA_DEN_001": {"destination_id": 1, "expired": False}}
-
-
-async def _safe_save_chat(session_id: str, destination_id: int | None, question: str, answer: str, metadata: dict) -> None:
-    try:
-        await postgres.save_chat(session_id, destination_id, question, answer, metadata)
-    except Exception as exc:
-        logger.warning("Chat persistence skipped: %s", exc)
-
-
 @router.get("/")
 def root():
     return {
