@@ -31,40 +31,53 @@ def _client() -> AsyncOpenAI:
     )
 
 
-def _payload(question: str, contexts: list[dict[str, Any]], stream: bool) -> dict[str, Any]:
+def _payload(
+    question: str,
+    contexts: list[dict[str, Any]],
+    stream: bool,
+    destination: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "model": OPENAI_MODEL,
-        "messages": messages(question, contexts),
+        "messages": messages(question, contexts, destination),
         "temperature": OPENAI_TEMPERATURE,
         "max_tokens": OPENAI_MAX_TOKENS,
         "stream": stream,
     }
 
 
-async def complete(question: str, contexts: list[dict[str, Any]]) -> tuple[str, str | None]:
+async def complete(
+    question: str,
+    contexts: list[dict[str, Any]],
+    destination: dict[str, Any] | None = None,
+) -> tuple[str, str | None]:
     if not configured():
-        return fallback_answer(question, contexts), "missing_openai_api_key"
+        return fallback_answer(question, contexts, destination), "missing_openai_api_key"
     try:
-        response = await _client().chat.completions.create(**_payload(question, contexts, False))
+        response = await _client().chat.completions.create(**_payload(question, contexts, False, destination))
         answer = (response.choices[0].message.content or "").strip()
-        return answer or fallback_answer(question, contexts), None
+        return answer or fallback_answer(question, contexts, destination), None
     except Exception as exc:
         logger.warning("LLM completion failed: %s", exc)
-        return fallback_answer(question, contexts), str(exc)
+        return fallback_answer(question, contexts, destination), str(exc)
 
 
-async def stream(question: str, contexts: list[dict[str, Any]]) -> AsyncGenerator[str, None]:
+async def stream(
+    question: str,
+    contexts: list[dict[str, Any]],
+    destination: dict[str, Any] | None = None,
+) -> AsyncGenerator[str, None]:
     if not configured():
-        for char in fallback_answer(question, contexts):
+        for char in fallback_answer(question, contexts, destination):
             yield char
         return
     try:
-        stream_response = await _client().chat.completions.create(**_payload(question, contexts, True))
+        stream_response = await _client().chat.completions.create(**_payload(question, contexts, True, destination))
         async for chunk in stream_response:
             token = chunk.choices[0].delta.content or ""
             if token:
                 yield token
     except Exception as exc:
         logger.warning("LLM stream failed: %s", exc)
-        for char in fallback_answer(question, contexts):
+        for char in fallback_answer(question, contexts, destination):
             yield char

@@ -69,15 +69,20 @@ def ensure_index() -> None:
         logger.warning("Chroma collection is empty; skipping rebuild during request")
 
 
-def query(question: str, top_k: int = RAG_TOP_K) -> list[dict[str, Any]]:
+def query(question: str, top_k: int = RAG_TOP_K, dest_code: str | None = None) -> list[dict[str, Any]]:
     ensure_index()
     coll = collection()
     if coll.count() == 0:
         return []
+    query_kwargs: dict[str, Any] = {
+        "query_embeddings": [embed_text(question)],
+        "n_results": min(top_k, coll.count()),
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if dest_code:
+        query_kwargs["where"] = {"dest_code": str(dest_code)}
     result = coll.query(
-        query_embeddings=[embed_text(question)],
-        n_results=min(top_k, coll.count()),
-        include=["documents", "metadatas", "distances"],
+        **query_kwargs,
     )
     contexts: list[dict[str, Any]] = []
     for index, doc_id in enumerate(result.get("ids", [[]])[0]):

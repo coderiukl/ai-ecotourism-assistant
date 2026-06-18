@@ -71,16 +71,22 @@ async def chat(payload: ChatRequest):
 
 @router.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest):
-    contexts = retrieve(payload.message)
+    destination = destinations().get(payload.destination_id) if payload.destination_id else None
+    contexts = retrieve(payload.message, destination_id=payload.destination_id)
 
     async def events() -> AsyncGenerator[bytes, None]:
         answer = ""
         yield b"event: start\ndata: {}\n\n"
-        async for token in llm.stream(payload.message, contexts):
+        async for token in llm.stream(payload.message, contexts, destination):
             answer += token
             body = json.dumps({"token": token}, ensure_ascii=False)
             yield f"event: token\ndata: {body}\n\n".encode("utf-8")
-        retrieval = {"contexts": contexts, "used_llm": llm.configured(), "destination_id": payload.destination_id}
+        retrieval = {
+            "contexts": contexts,
+            "used_llm": llm.configured(),
+            "destination_id": payload.destination_id,
+            "destination": destination,
+        }
         await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, answer, retrieval)
         body = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
         yield f"event: done\ndata: {body}\n\n".encode("utf-8")

@@ -853,11 +853,11 @@ p {
 }
 
 .msg {
-  max-width: min(92%, 285px);
-  padding: 11px 13px;
+  max-width: min(94%, 310px);
+  padding: 12px 14px;
   border-radius: 17px;
   font-size: 14px;
-  line-height: 1.58;
+  line-height: 1.55;
   overflow-wrap: anywhere;
   box-shadow: 0 6px 18px rgba(17, 71, 50, 0.06);
 }
@@ -890,8 +890,8 @@ p {
 }
 
 .markdown-message p {
-  margin: 0 0 9px;
-  line-height: 1.58;
+  margin: 0 0 10px;
+  line-height: 1.56;
 }
 
 .markdown-message h3,
@@ -904,13 +904,13 @@ p {
 
 .markdown-message ul,
 .markdown-message ol {
-  margin: 2px 0 10px;
-  padding-left: 20px;
+  margin: 4px 0 10px;
+  padding-left: 18px;
 }
 
 .markdown-message li {
-  margin: 4px 0;
-  padding-left: 2px;
+  margin: 5px 0;
+  padding-left: 3px;
 }
 
 .markdown-message strong {
@@ -997,6 +997,58 @@ p {
   border-radius: 10px;
   background: #f4fbf7;
   color: #3d5c50;
+}
+
+.message-callout {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 10px;
+  padding: 9px 10px;
+  border: 1px solid #dcebe3;
+  border-left: 3px solid #6fc596;
+  border-radius: 10px;
+  background: #f4fbf7;
+  color: #34584a;
+}
+
+.message-callout span {
+  color: #1f875a;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.message-callout p {
+  margin: 0;
+  line-height: 1.48;
+}
+
+.message-callout.tip {
+  border-left-color: #4f9fd9;
+  background: #f2f8fc;
+}
+
+.message-callout.tip span {
+  color: #276f9f;
+}
+
+.message-callout.important {
+  border-left-color: #d98a35;
+  background: #fff8ef;
+}
+
+.message-callout.important span {
+  color: #9d5b17;
+}
+
+.message-callout.source {
+  border-left-color: #96aa9f;
+  background: #f7faf8;
+}
+
+.message-callout.source span {
+  color: #566b61;
 }
 
 .user .markdown-message p,

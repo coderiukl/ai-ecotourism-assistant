@@ -78,7 +78,11 @@ function normalizeMarkdownText(text) {
   const raw = String(text || '')
     .replace(/\r\n?/g, '\n')
     .trim()
-    .replace(/(^|\n)\s*\u2022\s+/g, '$1- ');
+    .replace(/(^|\n)\s*\u2022\s+/g, '$1- ')
+    .replace(
+      /\s+(L\u01b0u \u00fd|Luu y|M\u1eb9o|Meo|Ngu\u1ed3n|Nguon|G\u1ee3i \u00fd|Goi y|C\u1ea7n bi\u1ebft|Can biet|Quan tr\u1ecdng|Quan trong):/g,
+      '\n\n$1:',
+    );
 
   const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
   const lineType = (line) => {
@@ -97,6 +101,31 @@ function normalizeMarkdownText(text) {
   return grouped.join('\n');
 }
 
+const CALLOUT_LABEL_PATTERN = /^(L\u01b0u \u00fd|Luu y|M\u1eb9o|Meo|Ngu\u1ed3n|Nguon|G\u1ee3i \u00fd|Goi y|C\u1ea7n bi\u1ebft|Can biet|Quan tr\u1ecdng|Quan trong):/i;
+
+function calloutType(block) {
+  const label = String(block || '').trim().match(CALLOUT_LABEL_PATTERN)?.[1];
+  if (!label) return null;
+  if (/^(Ngu\u1ed3n|Nguon)$/i.test(label)) return 'source';
+  if (/^(M\u1eb9o|Meo|G\u1ee3i \u00fd|Goi y)$/i.test(label)) return 'tip';
+  if (/^(Quan tr\u1ecdng|Quan trong)$/i.test(label)) return 'important';
+  return 'note';
+}
+
+function displayCalloutLabel(label) {
+  if (/^Luu y$/i.test(label)) return 'L\u01b0u \u00fd';
+  if (/^Meo$/i.test(label)) return 'M\u1eb9o';
+  if (/^Nguon$/i.test(label)) return 'Ngu\u1ed3n';
+  if (/^Goi y$/i.test(label)) return 'G\u1ee3i \u00fd';
+  if (/^Can biet$/i.test(label)) return 'C\u1ea7n bi\u1ebft';
+  if (/^Quan trong$/i.test(label)) return 'Quan tr\u1ecdng';
+  return label;
+}
+
+function stripCalloutLabel(block) {
+  return String(block || '').trim().replace(CALLOUT_LABEL_PATTERN, '').trim();
+}
+
 function MarkdownMessage({ text }) {
   const blocks = normalizeMarkdownText(text).split(/\n{2,}/);
 
@@ -107,6 +136,17 @@ function MarkdownMessage({ text }) {
         const key = `block-${index}`;
 
         if (!lines.length) return null;
+
+        const type = calloutType(block);
+        if (type) {
+          const label = lines[0].match(CALLOUT_LABEL_PATTERN)?.[1] || '';
+          return (
+            <div className={`message-callout ${type}`} key={key}>
+              <span>{displayCalloutLabel(label)}</span>
+              <p>{renderInline(stripCalloutLabel(lines.join(' ')), key)}</p>
+            </div>
+          );
+        }
 
         if (lines.length >= 2 && isMarkdownTableLine(lines[0]) && isMarkdownDividerLine(lines[1])) {
           const headers = splitMarkdownRow(lines[0]);

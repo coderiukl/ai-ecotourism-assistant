@@ -8,13 +8,55 @@ from typing import Any
 from app.core.config import RAG_TOP_K
 from app.rag.embeddings import backend_name, embed_text
 from app.rag import vector_store
-from app.services.excel_loader import rag_documents, stats as data_stats
+from app.services.excel_loader import destinations, rag_documents, stats as data_stats
 
 _TOKEN_RE = re.compile(r"[\wÀ-ỹ]+", re.UNICODE)
 
 
 def _tokens(text: str) -> set[str]:
     return set(_TOKEN_RE.findall((text or "").lower()))
+
+def _destination_scope(destination_id: int | None) -> dict[str, Any] | None:
+    if destination_id is None:
+        return None
+    destination = destinations().get(destination_id)
+    if not destination:
+        return {"id": destination_id, "missing": True}
+    return {
+        "id": destination_id,
+        "dest_code": str(destination.get("dest_code") or "").strip(),
+        "name": str(destination.get("name") or "").strip(),
+        "destination": destination,
+    }
+
+def _normalize(value: str) -> str:
+    return " ".join(str(value or "").casefold().split())
+
+def _matches_destination(document: dict[str, Any], scope: dict[str, Any] | None) -> bool:
+    if not scope:
+        return True
+    if scope.get("missing"):
+        return False
+
+    doc_dest_code = str(document.get("dest_code") or "").strip()
+    dest_code = str(scope.get("dest_code") or "").strip()
+    if dest_code and doc_dest_code == dest_code:
+        return True
+    if doc_dest_code:
+        return False
+
+    text = _normalize(f"{document.get('title', '')}\n{document.get('text', '')}")
+    if dest_code and _normalize(dest_code) in text:
+        return True
+    name = _normalize(str(scope.get("name") or ""))
+    return bool(name and name in text)
+
+def _documents_for_scope(scope: dict[str, Any] | None) -> list[dict[str, Any]]:
+    return [document for document in rag_documents() if _matches_destination(document, scope)]
+
+def _query_text(question: str, scope: dict[str, Any] | None) -> str:
+    name = str(scope.get("name") or "") if scope else ""
+    return f"{name}. {question}" if name else question
 
 
 def _cosine(left: list[float], right: list[float]) -> float:
@@ -57,10 +99,12 @@ def _intent_bonus(question: str, document: dict[str, Any]) -> float:
 def _memory_index() -> list[dict[str, Any]]:
     return [{**document, "embedding": embed_text(document["text"])} for document in rag_documents()]
 
-def _lexical_query(question: str, top_k: int) -> list[dict[str, Any]]:
+def _lexical_query(question: str, top_k: int, scope: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     scored = []
-    for document in rag_documents():
-        score = _lexical_bonus(question, document["text"]) + _intent_bonus(question, document)
+    scoped_documents = _documents_for_scope(scope)
+    query_text = _query_text(question, scope)
+    for document in scoped_documents:
+        score = _lexical_bonus(query_text, document["text"]) + _intent_bonus(question, document)
         scored.append((score, document))
     scored.sort(key=lambda item: item[0], reverse=True)
     return [
@@ -79,10 +123,12 @@ def _lexical_query(question: str, top_k: int) -> list[dict[str, Any]]:
     ]
 
 
-def _memory_query(question: str, top_k: int) -> list[dict[str, Any]]:
+def _memory_query(question: str, top_k: int, scope: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     query_embedding = embed_text(question)
     scored = []
     for document in _memory_index():
+        if not _matches_destination(document, scope):
+            continue
         score = _cosine(query_embedding, document["embedding"]) + _lexical_bonus(question, document["text"]) + _intent_bonus(question, document)
         scored.append((score, document))
     scored.sort(key=lambda item: item[0], reverse=True)
@@ -110,14 +156,21 @@ def _rerank(question: str, contexts: list[dict[str, Any]], top_k: int) -> list[d
     return [{**context, "score": round(score, 4)} for score, context in scored[:top_k]]
 
 
-def retrieve(question: str, top_k: int = RAG_TOP_K) -> list[dict[str, Any]]:
+def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None = None) -> list[dict[str, Any]]:
+    scope = _destination_scope(destination_id)
+    scoped_query = _query_text(question, scope)
     try:
-        contexts = vector_store.query(question, top_k=max(top_k * 4, 20))
+        contexts = vector_store.query(
+            scoped_query,
+            top_k=max(top_k * 4, 20),
+            dest_code=None if not scope else scope.get("dest_code"),
+        )
+        contexts = [context for context in contexts if _matches_destination(context, scope)]
         if contexts:
             return _rerank(question, contexts, top_k)
     except Exception:
         pass
-    return _lexical_query(question, top_k)
+    return _lexical_query(question, top_k, scope)
 
 
 def status() -> dict[str, Any]:
