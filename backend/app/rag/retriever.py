@@ -156,20 +156,45 @@ def _rerank(question: str, contexts: list[dict[str, Any]], top_k: int) -> list[d
     return [{**context, "score": round(score, 4)} for score, context in scored[:top_k]]
 
 
-def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None = None) -> list[dict[str, Any]]:
+def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None = None, intent: str = "general") -> list[dict[str, Any]]:
     scope = _destination_scope(destination_id)
     scoped_query = _query_text(question, scope)
+
+    preferred_sheets = {
+        "price": {"service_pricing"},
+        "opening_hours": {"operation_hours"},
+        "activities": {"activities", "destinations", "travel_tips", "photo_spots"},
+        "transport": {"transportation", "maps_navigation", "destinations"},
+        "itinerary": {"itineraries", "activities", "destinations"},
+        "general": set(),
+    }
+
     try:
         contexts = vector_store.query(
             scoped_query,
-            top_k=max(top_k * 4, 20),
+            top_k=max(top_k * 6, 30),
             dest_code=None if not scope else scope.get("dest_code"),
         )
+
         contexts = [context for context in contexts if _matches_destination(context, scope)]
+       
+        sheets = preferred_sheets.get(intent, set())
+
+        if sheets: 
+            contexts = sorted(
+                contexts,
+                key=lambda context: (
+                    1 if str(context.get("sheet") or context.get("type") or "") in sheets else 0,
+                    float(context.get("score") or 0),
+                ),
+                reverse=True,
+            )
         if contexts:
             return _rerank(question, contexts, top_k)
+        
     except Exception:
         pass
+    
     return _lexical_query(question, top_k, scope)
 
 

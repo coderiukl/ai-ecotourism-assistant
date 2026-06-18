@@ -9,24 +9,12 @@ services:
       - ./backend/.env
     environment:
       PROJECT_ROOT: /app
-      DATA_PATH: /app/no-local-data.xlsx
-      IMAGES_DIR: /app/no-local-images
-      CHROMA_PATH: /tmp/chroma_db
+      CHROMA_PATH: /app/chroma_db
       CHROMA_COLLECTION: nui_ba_den_rag
+      AUTO_BUILD_CHROMA_ON_STARTUP: "true"
     volumes:
-      - chroma_data:/tmp/chroma_db
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: https://ai-ecotourism-backend.onrender.com
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-
+      - chroma_data:/app/chroma_db
+      
   cloudflared:
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate --url http://backend:8000
