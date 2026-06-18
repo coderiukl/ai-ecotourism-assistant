@@ -11,3 +11,4 @@ openai
 asyncpg
 psycopg2
 sqlalchemy
+psycopg2-binary

@@ -47,17 +47,9 @@ DB_SHEETS = [
     "chatbot_intents",
 ]
 
-def _normalize_async_dsn() -> tuple[str, dict[str, Any]]:
+def _normalize_sync_dsn() -> str:
     dsn = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    kwargs: dict[str, Any] = {}
-
-    if "ssl=require" in dsn or "sslmode=require" in dsn:
-        dsn = dsn.replace("?ssl=require", "").replace("&ssl=require", "")
-        dsn = dsn.replace("?sslmode=require", "").replace("&sslmode=require", "")
-        kwargs["ssl"] = "require"
-
-    return dsn, kwargs
-
+    return dsn.replace("ssl=require", "sslmode=require")
 
 async def connect() -> None:
     global _pool
@@ -70,7 +62,7 @@ async def connect() -> None:
         return
 
     try:
-        dsn, kwargs = _normalize_async_dsn()
+        dsn, kwargs = _normalize_sync_dsn()
         _pool = await asyncio.wait_for(
             asyncpg.create_pool(
                 dsn=dsn,
@@ -188,7 +180,7 @@ def _load_supabase_rows() -> dict[str, list[dict[str, str]]]:
 
     try:
         with psycopg2.connect(
-            _normalize_async_dsn(DATABASE_URL),
+            _normalize_sync_dsn(),
             cursor_factory=RealDictCursor,
         ) as conn:
             with conn.cursor() as cursor:
