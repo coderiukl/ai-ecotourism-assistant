@@ -6,10 +6,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-
 from app.api.routes import router
-from app.core.config import AUTO_BUILD_CHROMA_ON_STARTUP, CORS_ORIGIN_REGEX, CORS_ORIGINS, IMAGES_DIR
+from app.core.config import AUTO_BUILD_CHROMA_ON_STARTUP, CORS_ORIGIN_REGEX, CORS_ORIGINS
 from app.core.logging import configure_logging
 from app.db import postgres
 
@@ -22,10 +20,11 @@ def _build_chroma_if_empty() -> None:
 
     current = vector_store.status()
     if current.get("collection_count", 0) > 0:
-        logger.info("Chroma startup build skipped: collection already has %s docs", current["collection_count"])
+        logger.info("Chroma already has %s docs", current["collection_count"])
         return
+    
     result = vector_store.rebuild_collection()
-    logger.info("Chroma startup build finished: %s docs", result.get("collection_count", 0))
+    logger.info("Chroma rebuilt: %s docs", result.get("collection_count", 0))
 
 
 async def _background_chroma_build() -> None:
@@ -41,18 +40,21 @@ async def _background_chroma_build() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await postgres.connect()
+
     chroma_task = None
     if AUTO_BUILD_CHROMA_ON_STARTUP:
         chroma_task = asyncio.create_task(_background_chroma_build())
+
     yield
+
     if chroma_task and not chroma_task.done():
         chroma_task.cancel()
+
     await postgres.close()
 
-
 def create_app() -> FastAPI:
-    application = FastAPI(title="AI Ecotourism Assistant", version="1.0.0", lifespan=lifespan)
-    application.add_middleware(
+    app = FastAPI(title="AI Ecotourism Assistant", version="1.0.0", lifespan=lifespan)
+    app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
         allow_origin_regex=CORS_ORIGIN_REGEX,
@@ -61,14 +63,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    @application.get("/healthz")
+    @app.get("/healthz")
     def healthz():
         return {"status": "ok"}
 
-    if IMAGES_DIR.exists():
-        application.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
-    application.include_router(router)
-    return application
+    app.include_router(router)
+    return app
 
 
 app = create_app()

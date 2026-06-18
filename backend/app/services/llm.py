@@ -20,29 +20,25 @@ from app.services.prompts import fallback_answer, messages
 logger = logging.getLogger(__name__)
 
 _INTERNAL_WORD_RE = re.compile(
-    r"\b(?:context|CONTEXT|sheet|Sheet|Excel n(?:ộ|o)i b(?:ộ|o)|ngu(?:ồ|o)n \d+)\b"
+    r"\b(?:context|CONTEXT|sheet|Sheet|Excel nội bộ|nguồn \d+)\b"
 )
-
 
 def polish_answer(text: str) -> str:
     answer = str(text or "").strip()
+
     if not answer:
         return answer
 
     replacements = [
-        (r"(?i)\bcontext\s+hiện\s+chỉ\s+có\s+", "Mình hiện chỉ có thông tin chắc về "),
-        (r"(?i)\bcontext\s+chỉ\s+có\s+", "Mình hiện chỉ có thông tin chắc về "),
-        (r"(?i)\bcontext\s+có\s+", "Mình có thông tin về "),
-        (r"(?i)\bdựa\s+trên\s+context[:,]?\s*", ""),
-        (r"(?i)\btheo\s+context[:,]?\s*", ""),
-        (r"(?i)\btheo\s+dữ\s+liệu\s+được\s+cung\s+cấp[:,]?\s*", ""),
-        (r"(?i)\btrong\s+context[:,]?\s*", ""),
+        (r"(?i)\bdựa trên context[:,]?\s*", ""),
+        (r"(?i)\btheo context[:,]?\s*", ""),
+        (r"(?i)\btheo dữ liệu được cung cấp[:,]?\s*", ""),
+        (r"(?i)\btrong context[:,]?\s*", ""),
     ]
+
     for pattern, replacement in replacements:
         answer = re.sub(pattern, replacement, answer)
 
-    answer = re.sub(r"^Có\.\s+(Mình hiện chỉ có thông tin chắc về)", r"\1", answer)
-    answer = re.sub(r"(Tây Ninh)(khu|Khu)", r"\1, \2", answer)
     answer = re.sub(r"\s+([,.!?;:])", r"\1", answer)
     answer = re.sub(r"\n{3,}", "\n\n", answer)
 
@@ -111,6 +107,7 @@ async def stream(
             token = chunk.choices[0].delta.content or ""
             if token:
                 answer += token
+                
         for char in polish_answer(answer):
             yield char
     except Exception as exc:

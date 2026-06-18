@@ -12,8 +12,10 @@ def configure_logging() -> None:
     log_file = log_dir / "app.log"
 
     formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
+    
     file_handler = logging.FileHandler(log_file, encoding="utf-8", delay=True)
     file_handler.setFormatter(formatter)
 

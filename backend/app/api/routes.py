@@ -7,16 +7,16 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
+from app.api.deps import QR_CODES, ChatRequest, QRScanRequest, safe_save_chat
 from app.db import postgres
 from app.rag.retriever import retrieve, status as rag_status
 from app.rag.vector_store import rebuild_collection, rebuild_status
-from app.schemas import ChatRequest, QRScanRequest
 from app.services import chat_service, llm
-from app.services.excel_loader import destinations, stats as data_stats
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-QR_CODES = {"ECO_NUI_BA_DEN_001": {"destination_id": 1, "expired": False}}
+
+# logger = logging.getLogger(__name__)
+# QR_CODES = {"ECO_NUI_BA_DEN_001": {"destination_id": 1, "expired": False}}
 
 
 async def _safe_save_chat(session_id: str, destination_id: int | None, question: str, answer: str, metadata: dict) -> None:
@@ -36,7 +36,7 @@ def root():
 @router.get("/api/status")
 def api_status():
     return {
-        "data": data_stats(),
+        "data": postgres.data_stats(),
         "postgres_enabled": postgres.enabled(),
     }
 
@@ -48,18 +48,18 @@ def scan_qr(payload: QRScanRequest):
         return {"status": "invalid", "message": "QR không thuộc hệ thống."}
     if qr["expired"]:
         return {"status": "expired", "message": "QR đã hết hạn."}
-    return {"status": "valid", "message": "Quét QR thành công.", "destination": destinations().get(qr["destination_id"], {})}
+    return {"status": "valid", "message": "Quét QR thành công.", "destination": postgres.destinations().get(qr["destination_id"], {})}
 
 
 @router.get("/api/destinations")
 def list_destinations():
-    values = list(destinations().values())
+    values = list(postgres.destinations().values())
     return {"total": len(values), "destinations": values}
 
 
 @router.get("/api/destinations/{destination_id}")
 def get_destination(destination_id: int):
-    return destinations().get(destination_id, {})
+    return postgres.destinations().get(destination_id, {})
 
 
 @router.post("/api/chat")
@@ -71,16 +71,21 @@ async def chat(payload: ChatRequest):
 
 @router.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest):
-    destination = destinations().get(payload.destination_id) if payload.destination_id else None
+    destination = (
+        postgres.destinations().get(payload.destination_id) if payload.destination_id else None
+    )
     contexts = retrieve(payload.message, destination_id=payload.destination_id)
 
     async def events() -> AsyncGenerator[bytes, None]:
         answer = ""
+
         yield b"event: start\ndata: {}\n\n"
+        
         async for token in llm.stream(payload.message, contexts, destination):
             answer += token
             body = json.dumps({"token": token}, ensure_ascii=False)
             yield f"event: token\ndata: {body}\n\n".encode("utf-8")
+
         retrieval = {
             "contexts": contexts,
             "used_llm": llm.configured(),
@@ -88,6 +93,7 @@ async def chat_stream(payload: ChatRequest):
             "destination": destination,
         }
         await _safe_save_chat(payload.session_id, payload.destination_id, payload.message, answer, retrieval)
+
         body = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
         yield f"event: done\ndata: {body}\n\n".encode("utf-8")
 
@@ -102,8 +108,10 @@ def get_rag_status():
 @router.post("/api/rag/rebuild")
 def rebuild_rag(background_tasks: BackgroundTasks):
     current = rebuild_status()
+    
     if current.get("status") == "running":
         return current
+    
     background_tasks.add_task(rebuild_collection)
     return {"status": "queued", "message": "Chroma rebuild started in background."}
 

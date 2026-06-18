@@ -19,6 +19,7 @@ def _sentence_model():
 
         if EMBEDDING_ALLOW_DOWNLOAD:
             return SentenceTransformer(EMBEDDING_MODEL)
+        
         return SentenceTransformer(EMBEDDING_MODEL, local_files_only=True)
     except Exception as exc:
         logger.warning("SentenceTransformer unavailable, using hash embeddings: %s", exc)
@@ -30,6 +31,7 @@ def _fit(vector: list[float]) -> list[float]:
         vector = vector[:EMBEDDING_DIM]
     elif len(vector) < EMBEDDING_DIM:
         vector = vector + [0.0] * (EMBEDDING_DIM - len(vector))
+
     norm = math.sqrt(sum(value * value for value in vector)) or 1.0
     return [value / norm for value in vector]
 
@@ -45,11 +47,15 @@ def _hash_embedding(text: str) -> list[float]:
 
 def embed_text(text: str) -> list[float]:
     model = _sentence_model()
+
     if model is None:
         return _hash_embedding(text)
+    
     vector = model.encode(text or "", normalize_embeddings=True)
+
     if hasattr(vector, "tolist"):
         vector = vector.tolist()
+        
     return _fit([float(value) for value in vector])
 
 

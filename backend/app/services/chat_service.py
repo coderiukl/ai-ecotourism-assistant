@@ -3,18 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.config import OPENAI_BASE_URL, OPENAI_MODEL, RAG_TOP_K
+from app.db import postgres
 from app.rag.retriever import retrieve
 from app.services import llm
-from app.services.excel_loader import destinations
 from app.services.query_understanding import understand_query
 
 async def answer(question: str, destination_id: int | None = None, session_id: str = "default") -> dict[str, Any]:
-    destination = destinations().get(destination_id) if destination_id else None
+    destination = postgres.destinations().get(destination_id) if destination_id else None
     destination_name = destination.get("name") if destination else None
 
     query_info = understand_query(question, destination_name)
 
-    if query_info.shoud_clarify:
+    if query_info.should_clarify:
         return {
             "answer": query_info.clarify_question,
             "retrieval": {

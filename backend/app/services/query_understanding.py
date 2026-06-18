@@ -6,7 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class QueryUnderstanding:
     intent: str
-    shoud_clarify: bool
+    should_clarify: bool
     clarify_question: str | None = None
 
 def normalize(text: str) -> str:
@@ -15,6 +15,7 @@ def normalize(text: str) -> str:
 def understand_query(question: str, destination_name: str | None = None) -> QueryUnderstanding:
     q = normalize(question)
     tokens = q.split()
+    place = destination_name or 'địa điểm này'
 
     price_words = {"giá", "vé", "tiền", "combo", "buffet", "cáp treo", "bao nhiêu"}
     hour_words = {"giờ", "mở cửa", "đóng cửa", "lịch", "vận hành"}
@@ -27,19 +28,17 @@ def understand_query(question: str, destination_name: str | None = None) -> Quer
     
     if len(tokens) <= 2:
         if has_any(price_words):
-            return QueryUnderstanding(intent="price", shoud_clarify=True, clarify_question=(
-                f"Bạn muốn hỏi giá vé của {destination_name or 'địa điểm này'},"
-                "hay giá cáp treo/combo/buffet?"
-            ),)
+            return QueryUnderstanding(
+                intent="price",
+                should_clarify=True,
+                clarify_question=f"Bạn muốn hỏi giá vé của {place}, hay giá cáp treo/combo/buffet?",
+            )
         
         if has_any(hour_words):
             return QueryUnderstanding(
                 intent="opening_hours",
                 shoud_clarify=True,
-                clarify_question=(
-                    f"Bạn muốn hỏi giờ mở cửa của {destination_name or 'địa điểm này'},"
-                    "hay giờ vận hành cáp treo?"
-                )
+                clarify_question=f"Bạn muốn hỏi giờ mở cửa của {place}, hay giờ vận hành cáp treo?"
             )
         
         return QueryUnderstanding(
