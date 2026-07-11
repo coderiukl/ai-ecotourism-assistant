@@ -1,11 +1,14 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import asyncio
-from typing import Any
 from functools import lru_cache
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from openpyxl import load_workbook
+
 from app.core.config import DATABASE_URL, DATA_PATH
 
 try:
@@ -23,6 +26,7 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 _pool: Any | None = None
+
 
 DB_SHEETS = [
     "destinations",
@@ -47,14 +51,94 @@ DB_SHEETS = [
     "chatbot_intents",
 ]
 
-def _normalize_sync_dsn() -> str:
-    dsn = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    return dsn.replace("ssl=require", "sslmode=require")
+
+def _base_postgres_dsn() -> str:
+    """
+    Chuẩn hóa SQLAlchemy URL:
+    postgresql+asyncpg://... -> postgresql://...
+    """
+    if not DATABASE_URL:
+        return ""
+
+    return DATABASE_URL.replace(
+        "postgresql+asyncpg://",
+        "postgresql://",
+        1,
+    )
+
+
+def _asyncpg_dsn() -> str:
+    """
+    DSN dành cho asyncpg.
+
+    asyncpg không dùng sslmode=require theo cách psycopg2.
+    Ta loại bỏ ssl/sslmode khỏi query string và truyền ssl riêng
+    trong asyncpg.create_pool(..., ssl="require").
+    """
+    dsn = _base_postgres_dsn()
+
+    if not dsn:
+        return ""
+
+    parts = urlsplit(dsn)
+
+    query_items = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower() not in {"ssl", "sslmode"}
+    ]
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(query_items),
+            parts.fragment,
+        )
+    )
+
+
+def _psycopg2_dsn() -> str:
+    """
+    DSN dành cho psycopg2.
+
+    psycopg2 dùng sslmode=require.
+    """
+    dsn = _base_postgres_dsn()
+
+    if not dsn:
+        return ""
+
+    parts = urlsplit(dsn)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+
+    ssl_value = query.pop("ssl", None)
+
+    if ssl_value and "sslmode" not in query:
+        query["sslmode"] = ssl_value
+
+    query.setdefault("sslmode", "require")
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(query),
+            parts.fragment,
+        )
+    )
+
 
 async def connect() -> None:
     global _pool
 
-    if not DATABASE_URL or _pool is not None:
+    if not DATABASE_URL:
+        logger.warning("Postgres disabled: DATABASE_URL is empty")
+        return
+
+    if _pool is not None:
         return
 
     if asyncpg is None:
@@ -62,29 +146,35 @@ async def connect() -> None:
         return
 
     try:
-        dsn, kwargs = _normalize_sync_dsn()
+        dsn = _asyncpg_dsn()
+
         _pool = await asyncio.wait_for(
             asyncpg.create_pool(
                 dsn=dsn,
-                min_size=0,
-                max_size=2,
-                timeout=5,
-                command_timeout=10,
-                **kwargs,
+                min_size=1,
+                max_size=5,
+                timeout=10,
+                command_timeout=30,
+                ssl="require",
             ),
-            timeout=8,
+            timeout=15,
         )
-        await asyncio.wait_for(migrate(), timeout=10)
+
+        await asyncio.wait_for(migrate(), timeout=20)
         logger.info("Postgres connected")
+
     except Exception as exc:
         _pool = None
-        logger.warning("Postgres disabled: %s", exc)
+        logger.exception("Postgres disabled: %s", exc)
+
 
 async def close() -> None:
     global _pool
+
     if _pool is not None:
         await _pool.close()
         _pool = None
+        logger.info("Postgres connection pool closed")
 
 
 async def migrate() -> None:
@@ -104,47 +194,86 @@ async def migrate() -> None:
             create table if not exists chat_messages (
                 id bigserial primary key,
                 session_id text not null,
-                role text not null check (role in ('user','assistant')),
+                role text not null check (role in ('user', 'assistant')),
                 content text not null,
                 metadata jsonb not null default '{}'::jsonb,
                 created_at timestamptz not null default now()
             );
+
+            create index if not exists idx_chat_messages_session_id
+            on chat_messages(session_id);
+
+            create index if not exists idx_chat_messages_created_at
+            on chat_messages(created_at);
             """
         )
 
 
-async def save_chat(session_id: str, destination_id: int | None, user_message: str, assistant_message: str, metadata: dict[str, Any]) -> None:
+async def save_chat(
+    session_id: str,
+    destination_id: int | None,
+    user_message: str,
+    assistant_message: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
     if _pool is None:
+        logger.warning("save_chat skipped: Postgres is not connected")
         return
 
+    metadata = metadata or {}
+
     async with _pool.acquire() as conn:
-        await conn.execute(
-            """
-            insert into chat_sessions(session_id, destination_id, updated_at)
-            values($1, $2, now())
-            on conflict(session_id)
-            do update set destination_id = excluded.destination_id, updated_at = now()
-            """,
-            session_id,
-            destination_id,
-        )
+        async with conn.transaction():
+            await conn.execute(
+                """
+                insert into chat_sessions(
+                    session_id,
+                    destination_id,
+                    updated_at
+                )
+                values($1, $2, now())
+                on conflict(session_id)
+                do update set
+                    destination_id = excluded.destination_id,
+                    updated_at = now()
+                """,
+                session_id,
+                destination_id,
+            )
 
-        await conn.execute(
-            "insert into chat_messages(session_id, role, content, metadata) values($1, 'user', $2, '{}'::jsonb)",
-            session_id,
-            user_message,
-        )
+            await conn.execute(
+                """
+                insert into chat_messages(
+                    session_id,
+                    role,
+                    content,
+                    metadata
+                )
+                values($1, 'user', $2, '{}'::jsonb)
+                """,
+                session_id,
+                user_message,
+            )
 
-        await conn.execute(
-            "insert into chat_messages(session_id, role, content, metadata) values($1, 'assistant', $2, $3::jsonb)",
-            session_id,
-            assistant_message,
-            json.dumps(metadata, ensure_ascii=False),
-        )
+            await conn.execute(
+                """
+                insert into chat_messages(
+                    session_id,
+                    role,
+                    content,
+                    metadata
+                )
+                values($1, 'assistant', $2, $3::jsonb)
+                """,
+                session_id,
+                assistant_message,
+                json.dumps(metadata, ensure_ascii=False),
+            )
 
 
 def enabled() -> bool:
     return _pool is not None
+
 
 def clean(value: Any) -> str:
     if value is None:
@@ -155,10 +284,15 @@ def clean(value: Any) -> str:
 
     return str(value).strip()
 
+
 def image_url_for_dest(fallback_url: str = "") -> str:
     return fallback_url.strip()
 
-def _row_to_dict(headers: list[str], row: tuple[Any, ...]) -> dict[str, str]:
+
+def _row_to_dict(
+    headers: list[str],
+    row: tuple[Any, ...],
+) -> dict[str, str]:
     record: dict[str, str] = {}
 
     for index, header in enumerate(headers):
@@ -172,37 +306,57 @@ def _row_to_dict(headers: list[str], row: tuple[Any, ...]) -> dict[str, str]:
 
     return record
 
+
 def _load_supabase_rows() -> dict[str, list[dict[str, str]]]:
-    if not DATABASE_URL or psycopg2 is None or RealDictCursor is None:
+    if not DATABASE_URL:
+        return {}
+
+    if psycopg2 is None or RealDictCursor is None:
+        logger.warning(
+            "Supabase data load skipped: psycopg2 is not installed"
+        )
         return {}
 
     sheets: dict[str, list[dict[str, str]]] = {}
+    dsn = _psycopg2_dsn()
 
     try:
         with psycopg2.connect(
-            _normalize_sync_dsn(),
+            dsn,
             cursor_factory=RealDictCursor,
+            connect_timeout=10,
         ) as conn:
             with conn.cursor() as cursor:
                 for table in DB_SHEETS:
                     try:
-                        cursor.execute(f"select * from {table}")
+                        cursor.execute(
+                            f'SELECT * FROM "{table}"'
+                        )
+                        rows = cursor.fetchall()
+
                     except Exception as exc:
                         conn.rollback()
-                        logger.warning("Supabase table skipped: %s (%s)", table, exc)
+                        logger.warning(
+                            "Supabase table skipped: %s (%s)",
+                            table,
+                            exc,
+                        )
                         continue
 
-                    rows = cursor.fetchall()
                     sheets[table] = [
                         {
-                            key: clean(value)
+                            key: cleaned_value
                             for key, value in dict(row).items()
-                            if clean(value)
+                            if (cleaned_value := clean(value))
                         }
                         for row in rows
                     ]
+
     except Exception as exc:
-        logger.warning("Supabase data load skipped: %s", exc)
+        logger.exception(
+            "Supabase data load skipped: %s",
+            exc,
+        )
         return {}
 
     return sheets
@@ -211,13 +365,25 @@ def _load_supabase_rows() -> dict[str, list[dict[str, str]]]:
 @lru_cache(maxsize=1)
 def load_rows() -> dict[str, list[dict[str, str]]]:
     if DATABASE_URL:
-        return _load_supabase_rows()
+        supabase_rows = _load_supabase_rows()
+
+        if supabase_rows:
+            return supabase_rows
+
+        logger.warning(
+            "Supabase returned no data; falling back to Excel"
+        )
 
     if not DATA_PATH.exists():
         logger.warning("Excel file not found: %s", DATA_PATH)
         return {}
 
-    workbook = load_workbook(DATA_PATH, read_only=True, data_only=True)
+    workbook = load_workbook(
+        DATA_PATH,
+        read_only=True,
+        data_only=True,
+    )
+
     sheets: dict[str, list[dict[str, str]]] = {}
 
     for worksheet in workbook.worksheets:
@@ -227,10 +393,23 @@ def load_rows() -> dict[str, list[dict[str, str]]]:
         if not header_row:
             continue
 
-        headers = [clean(cell).lower().strip() for cell in header_row]
-        records = [_row_to_dict(headers, row) for row in rows]
-        sheets[worksheet.title] = [record for record in records if any(record.values())]
+        headers = [
+            clean(cell).lower().strip()
+            for cell in header_row
+        ]
 
+        records = [
+            _row_to_dict(headers, row)
+            for row in rows
+        ]
+
+        sheets[worksheet.title] = [
+            record
+            for record in records
+            if any(record.values())
+        ]
+
+    workbook.close()
     return sheets
 
 
@@ -239,32 +418,56 @@ def destinations() -> dict[int, dict[str, Any]]:
     sheets = load_rows()
 
     media_by_dest: dict[str, dict[str, str]] = {}
+
     for media in sheets.get("media_assets", []):
-        media_by_dest.setdefault(media.get("dest_id", ""), media)
+        media_by_dest.setdefault(
+            media.get("dest_id", ""),
+            media,
+        )
 
     result: dict[int, dict[str, Any]] = {}
 
-    for index, record in enumerate(sheets.get("destinations", []), start=1):
+    for index, record in enumerate(
+        sheets.get("destinations", []),
+        start=1,
+    ):
         dest_id = record.get("dest_id", "")
         media = media_by_dest.get(dest_id, {})
 
         result[index] = {
             "id": index,
             "dest_code": dest_id,
-            "name": record.get("name", "Điểm đến Núi Bà Đen"),
+            "name": record.get(
+                "name",
+                "Điểm đến Núi Bà Đen",
+            ),
             "category": record.get("category", ""),
             "location": record.get("location", ""),
-            "short_description": record.get("description_short", ""),
-            "description_detail": record.get("description_detail", ""),
+            "short_description": record.get(
+                "description_short",
+                "",
+            ),
+            "description_detail": record.get(
+                "description_detail",
+                "",
+            ),
             "highlight": record.get("highlight", ""),
             "best_time": record.get("best_time", ""),
-            "estimated_duration": record.get("estimated_duration", ""),
+            "estimated_duration": record.get(
+                "estimated_duration",
+                "",
+            ),
             "travel_type": record.get("travel_type", ""),
-            "difficulty_level": record.get("difficulty_level", ""),
+            "difficulty_level": record.get(
+                "difficulty_level",
+                "",
+            ),
             "transport": record.get("transport", ""),
             "seo_keyword": record.get("seo_keyword", ""),
             "source_url": record.get("source_url", ""),
-            "image_url": image_url_for_dest(media.get("image_url", "")),
+            "image_url": image_url_for_dest(
+                media.get("image_url", "")
+            ),
             "image_caption": media.get("caption", ""),
             "image_alt": media.get("alt_text", ""),
         }
@@ -272,7 +475,10 @@ def destinations() -> dict[int, dict[str, Any]]:
     return result
 
 
-def _title_for_record(sheet: str, record: dict[str, str]) -> str:
+def _title_for_record(
+    sheet: str,
+    record: dict[str, str],
+) -> str:
     for key in (
         "name",
         "title",
@@ -291,9 +497,21 @@ def _title_for_record(sheet: str, record: dict[str, str]) -> str:
     return sheet
 
 
-def _record_text(sheet: str, record: dict[str, str]) -> str:
-    labels = [f"sheet: {sheet}", f"title: {_title_for_record(sheet, record)}"]
-    labels.extend(f"{key}: {value}" for key, value in record.items() if value)
+def _record_text(
+    sheet: str,
+    record: dict[str, str],
+) -> str:
+    labels = [
+        f"sheet: {sheet}",
+        f"title: {_title_for_record(sheet, record)}",
+    ]
+
+    labels.extend(
+        f"{key}: {value}"
+        for key, value in record.items()
+        if value
+    )
+
     return "\n".join(labels)
 
 
@@ -302,30 +520,60 @@ def rag_documents() -> list[dict[str, Any]]:
     documents: list[dict[str, Any]] = []
 
     for sheet, records in load_rows().items():
-        for row_index, record in enumerate(records, start=2):
+        for row_index, record in enumerate(
+            records,
+            start=2,
+        ):
             documents.append(
                 {
                     "id": f"{sheet}:{row_index}",
                     "sheet": sheet,
                     "type": sheet,
-                    "title": _title_for_record(sheet, record),
-                    "dest_code": record.get("dest_id") or record.get("place_id") or "",
-                    "source_url": record.get("source_url", ""),
-                    "text": _record_text(sheet, record),
+                    "title": _title_for_record(
+                        sheet,
+                        record,
+                    ),
+                    "dest_code": (
+                        record.get("dest_id")
+                        or record.get("place_id")
+                        or ""
+                    ),
+                    "source_url": record.get(
+                        "source_url",
+                        "",
+                    ),
+                    "text": _record_text(
+                        sheet,
+                        record,
+                    ),
                 }
             )
 
     return documents
 
 
+def clear_data_cache() -> None:
+    load_rows.cache_clear()
+    destinations.cache_clear()
+    rag_documents.cache_clear()
+
+
 def data_stats() -> dict[str, Any]:
     sheets = load_rows()
 
     return {
-        "data_source": "supabase" if DATABASE_URL else "excel",
+        "postgres_enabled": enabled(),
+        "data_source": (
+            "supabase"
+            if DATABASE_URL and sheets
+            else "excel"
+        ),
         "data_path": str(DATA_PATH),
         "data_exists": DATA_PATH.exists(),
-        "sheets": {name: len(rows) for name, rows in sheets.items()},
+        "sheets": {
+            name: len(rows)
+            for name, rows in sheets.items()
+        },
         "destinations": len(destinations()),
         "documents": len(rag_documents()),
     }
