@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.db import postgres
 
@@ -24,7 +24,12 @@ class QRScanRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     destination_id: int | None = None
-    session_id: str = "default"
+    session_id: str = Field("default", min_length=1, max_length=120)
+
+    @field_validator("message", "session_id")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        return value.strip()
 
 
 async def safe_save_chat(

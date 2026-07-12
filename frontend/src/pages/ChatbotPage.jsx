@@ -292,6 +292,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     const sessionId = sessionIdRef.current;
 
     async function askWithoutStream() {
+      if (!API_URL) throw new Error('Missing VITE_API_URL');
+
       const fallbackRes = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,6 +310,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     }
 
     try {
+      if (!API_URL) throw new Error('Missing VITE_API_URL');
+
       const res = await fetch(`${API_URL}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -325,19 +329,28 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
       const decoder = new TextDecoder();
       let botText = '';
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          buffer += decoder.decode();
+          break;
+        }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const eventBlocks = buffer.split('\n\n');
+        buffer = eventBlocks.pop() || '';
 
-        for (const line of lines) {
-          if (line.startsWith('event: token')) continue;
-          if (line.startsWith('data: ')) {
+        for (const eventBlock of eventBlocks) {
+          const lines = eventBlock.split('\n');
+          const eventName = lines.find((line) => line.startsWith('event: '))?.slice(7);
+          const dataLine = lines.find((line) => line.startsWith('data: '));
+
+          if (eventName === 'done') continue;
+          if (dataLine) {
             try {
-              const data = JSON.parse(line.slice(6));
+              const data = JSON.parse(dataLine.slice(6));
               if (data.token) {
                 botText += data.token;
                 setStreamingText(botText);
@@ -346,7 +359,21 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
               }
             } catch {}
           }
-          if (line.startsWith('event: done')) break;
+        }
+      }
+
+      if (buffer.trim()) {
+        const lines = buffer.split('\n');
+        const dataLine = lines.find((line) => line.startsWith('data: '));
+        if (dataLine) {
+          try {
+            const data = JSON.parse(dataLine.slice(6));
+            if (data.token) {
+              botText += data.token;
+              setStreamingText(botText);
+              setVisibleStreamingText(botText);
+            }
+          } catch {}
         }
       }
 

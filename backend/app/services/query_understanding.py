@@ -3,63 +3,150 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-@dataclass
+
+@dataclass(frozen=True)
 class QueryUnderstanding:
     intent: str
-    should_clarify: bool
+    should_clarify: bool = False
     clarify_question: str | None = None
 
+
 def normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip().lower())
+    value = re.sub(r"\s+", " ", str(text or "").strip().lower())
+    return value
+
+
+INTENT_KEYWORDS: dict[str, set[str]] = {
+    "price": {
+        "giá",
+        "vé",
+        "bao nhiêu",
+        "combo",
+        "buffet",
+        "cáp treo",
+        "chi phí",
+        "tiền",
+        "mua vé",
+    },
+    "opening_hours": {
+        "giờ",
+        "mở cửa",
+        "đóng cửa",
+        "lịch",
+        "vận hành",
+        "mấy giờ",
+        "thời gian",
+    },
+    "activities": {
+        "chơi",
+        "tham quan",
+        "trải nghiệm",
+        "check in",
+        "làm gì",
+        "có gì",
+        "điểm nổi bật",
+        "hoạt động",
+    },
+    "transport": {
+        "đi sao",
+        "đường",
+        "di chuyển",
+        "xe",
+        "bus",
+        "bản đồ",
+        "lối đi",
+        "gửi xe",
+    },
+    "itinerary": {
+        "lịch trình",
+        "1 ngày",
+        "một ngày",
+        "nửa ngày",
+        "buổi sáng",
+        "buổi chiều",
+        "bao lâu",
+        "mất mấy tiếng",
+    },
+    "food_stay": {
+        "ăn",
+        "uống",
+        "đặc sản",
+        "nhà hàng",
+        "khách sạn",
+        "ở đâu",
+        "lưu trú",
+    },
+    "safety": {
+        "an toàn",
+        "lưu ý",
+        "nguy hiểm",
+        "cấp cứu",
+        "y tế",
+        "trẻ em",
+        "người già",
+    },
+}
+
+
+AMBIGUOUS_SHORT_WORDS = {
+    "giá",
+    "vé",
+    "giờ",
+    "cáp treo",
+    "buffet",
+    "đi sao",
+    "có gì",
+    "ăn gì",
+    "chơi gì",
+}
+
+
+def _has_any(question: str, words: set[str]) -> bool:
+    return any(word in question for word in words)
+
+
+def _detect_intent(question: str) -> str:
+    for intent, words in INTENT_KEYWORDS.items():
+        if _has_any(question, words):
+            return intent
+    return "general"
+
 
 def understand_query(question: str, destination_name: str | None = None) -> QueryUnderstanding:
     q = normalize(question)
     tokens = q.split()
-    place = destination_name or 'địa điểm này'
+    place = destination_name or "địa điểm này"
+    intent = _detect_intent(q)
 
-    price_words = {"giá", "vé", "tiền", "combo", "buffet", "cáp treo", "bao nhiêu"}
-    hour_words = {"giờ", "mở cửa", "đóng cửa", "lịch", "vận hành"}
-    activity_words = {"chơi", "tham quan", "trải nghiệm", "check in", "làm gì"}
-    transport_words = {"đi", "đường", "bus", "di chuyển"}
-    itinerary_words = {"lịch trình", "1 ngày", "nửa ngày", "buổi sáng", "buổi chiều"}
-
-    def has_any(words: set[str]) -> bool:
-        return any(word in q for word in words)
-    
-    if len(tokens) <= 2:
-        if has_any(price_words):
-            return QueryUnderstanding(
-                intent="price",
-                should_clarify=True,
-                clarify_question=f"Bạn muốn hỏi giá vé của {place}, hay giá cáp treo/combo/buffet?",
-            )
-        
-        if has_any(hour_words):
-            return QueryUnderstanding(
-                intent="opening_hours",
-                shoud_clarify=True,
-                clarify_question=f"Bạn muốn hỏi giờ mở cửa của {place}, hay giờ vận hành cáp treo?"
-            )
-        
+    if not q:
         return QueryUnderstanding(
             intent="general",
-            shoud_clarify=True,
-            clarify_question="Bạn hỏi rõ hơn một chút nhé: bạn muốn biết giá vé, giờ mở cửa, cách đi hay có gì chơi?"
+            should_clarify=True,
+            clarify_question="Bạn muốn hỏi về giá vé, giờ mở cửa, cách đi hay có gì tham quan?",
         )
 
-    if has_any(price_words):
-        return QueryUnderstanding("price", False)
-    
-    if has_any(hour_words):
-        return QueryUnderstanding("opening_hours", False)
-    
-    if has_any(hour_words):
-        return QueryUnderstanding("activities", False)
-    
-    if has_any(hour_words):
-        return QueryUnderstanding("transport", False)
-    
-    if has_any(hour_words):
-        return QueryUnderstanding("itinerary", False)
-    
-    return QueryUnderstanding("general", False)
+    if len(tokens) <= 2 and (q in AMBIGUOUS_SHORT_WORDS or intent != "general"):
+        if intent == "price":
+            return QueryUnderstanding(
+                intent=intent,
+                should_clarify=True,
+                clarify_question=f"Bạn muốn hỏi giá vé tham quan {place}, hay giá cáp treo/combo/buffet?",
+            )
+
+        if intent == "opening_hours":
+            return QueryUnderstanding(
+                intent=intent,
+                should_clarify=True,
+                clarify_question=f"Bạn muốn hỏi giờ mở cửa của {place}, hay giờ vận hành cáp treo?",
+            )
+
+        return QueryUnderstanding(
+            intent=intent,
+            should_clarify=True,
+            clarify_question=(
+                "Bạn hỏi rõ hơn một chút nhé: bạn muốn biết giá vé, giờ mở cửa, "
+                "cách đi hay có gì tham quan?"
+            ),
+        )
+
+    return QueryUnderstanding(intent=intent)

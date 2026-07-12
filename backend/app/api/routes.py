@@ -8,10 +8,12 @@ from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import QR_CODES, ChatRequest, QRScanRequest, safe_save_chat
+from app.core.config import OPENAI_MODEL
 from app.db import postgres
 from app.rag.retriever import retrieve, status as rag_status
 from app.rag.vector_store import rebuild_collection, rebuild_status
 from app.services import chat_service, llm
+from app.services.query_understanding import understand_query
 
 router = APIRouter()
 
@@ -70,10 +72,10 @@ async def chat(payload: ChatRequest):
         payload.destination_id,
         payload.message,
         result["answer"],
-        result["retrieval"],
+        result.get("metadata") or result["retrieval"],
     )
 
-    return result
+    return {"answer": result["answer"], "retrieval": result["retrieval"]}
 
 
 @router.post("/api/chat/stream")
@@ -83,23 +85,45 @@ async def chat_stream(payload: ChatRequest):
         if payload.destination_id
         else None
     )
-    contexts = retrieve(payload.message, destination_id=payload.destination_id)
+    destination_name = destination.get("name") if destination else None
+    query_info = understand_query(payload.message, destination_name)
+    contexts = []
+
+    if not query_info.should_clarify:
+        contexts = retrieve(
+            payload.message,
+            destination_id=payload.destination_id,
+            intent=query_info.intent,
+        )
 
     async def events() -> AsyncGenerator[bytes, None]:
         answer = ""
 
         yield b"event: start\ndata: {}\n\n"
 
-        async for token in llm.stream(payload.message, contexts, destination):
-            answer += token
-            body = json.dumps({"token": token}, ensure_ascii=False)
-            yield f"event: token\ndata: {body}\n\n".encode("utf-8")
+        if query_info.should_clarify:
+            response_text = query_info.clarify_question or "Bạn hỏi rõ hơn một chút nhé?"
+            for token in response_text:
+                answer += token
+                body = json.dumps({"token": token}, ensure_ascii=False)
+                yield f"event: token\ndata: {body}\n\n".encode("utf-8")
+        else:
+            async for token in llm.stream(payload.message, contexts, destination):
+                answer += token
+                body = json.dumps({"token": token}, ensure_ascii=False)
+                yield f"event: token\ndata: {body}\n\n".encode("utf-8")
 
-        retrieval = {
+        metadata = {
+            "top_k": len(contexts),
             "contexts": contexts,
-            "used_llm": llm.configured(),
+            "used_llm": (not query_info.should_clarify) and llm.configured(),
+            "llm_error": None,
+            "model": OPENAI_MODEL,
             "destination_id": payload.destination_id,
             "destination": destination,
+            "session_id": payload.session_id,
+            "intent": query_info.intent,
+            "clarified": query_info.should_clarify,
         }
 
         await safe_save_chat(
@@ -107,10 +131,11 @@ async def chat_stream(payload: ChatRequest):
             payload.destination_id,
             payload.message,
             answer,
-            retrieval,
+            metadata,
         )
 
-        body = json.dumps({"retrieval": retrieval}, ensure_ascii=False)
+        public_retrieval = chat_service.public_retrieval(metadata)
+        body = json.dumps({"retrieval": public_retrieval}, ensure_ascii=False)
         yield f"event: done\ndata: {body}\n\n".encode("utf-8")
 
     return StreamingResponse(

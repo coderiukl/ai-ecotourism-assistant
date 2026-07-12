@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+load_dotenv(override=False)
 
 
 def _bool(name: str, default: bool = False) -> bool:
@@ -48,6 +48,7 @@ EMBEDDING_DIM = _int("EMBEDDING_DIM", _int("RAG_EMBEDDING_DIM", 384))
 EMBEDDING_ALLOW_DOWNLOAD = _bool("EMBEDDING_ALLOW_DOWNLOAD", False)
 
 RAG_TOP_K = _int("RAG_TOP_K", 6)
+RAG_MIN_RELEVANCE_SCORE = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.05"))
 AUTO_BUILD_CHROMA_ON_STARTUP = _bool("AUTO_BUILD_CHROMA_ON_STARTUP", False)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -58,6 +59,9 @@ OPENAI_MAX_TOKENS = _int("OPENAI_MAX_TOKENS", 900)
 OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+APP_ENV = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "production")).strip().lower()
+DEBUG_RETRIEVAL = _bool("DEBUG_RETRIEVAL", APP_ENV not in {"production", "prod"})
 
 CORS_ORIGINS = [
     item.strip()

@@ -2,15 +2,17 @@
 
 import math
 import re
+import logging
 from functools import lru_cache
 from typing import Any
 
-from app.core.config import RAG_TOP_K
+from app.core.config import RAG_MIN_RELEVANCE_SCORE, RAG_TOP_K
 from app.rag.embeddings import backend_name, embed_text
 from app.rag import vector_store
 from app.db import postgres
 
 _TOKEN_RE = re.compile(r"[\wÀ-ỹ]+", re.UNICODE)
+logger = logging.getLogger(__name__)
 
 
 def _tokens(text: str) -> set[str]:
@@ -149,7 +151,11 @@ def _rerank(question: str, contexts: list[dict[str, Any]], top_k: int) -> list[d
         scored.append((score, context))
 
     scored.sort(key=lambda item: item[0], reverse=True)
-    return [{**context, "score": round(score, 4)} for score, context in scored[:top_k]]
+    return [
+        {**context, "score": round(score, 4)}
+        for score, context in scored[:top_k]
+        if score >= RAG_MIN_RELEVANCE_SCORE
+    ]
 
 
 def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None = None, intent: str = "general") -> list[dict[str, Any]]:
@@ -162,6 +168,8 @@ def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None =
         "activities": {"activities", "destinations", "travel_tips", "photo_spots"},
         "transport": {"transportation", "maps_navigation", "destinations"},
         "itinerary": {"itineraries", "activities", "destinations"},
+        "food_stay": {"food_stay", "travel_tips", "destinations"},
+        "safety": {"safety_emergency", "travel_tips", "contact_info"},
         "general": set(),
     }
 
@@ -188,8 +196,8 @@ def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None =
         if contexts:
             return _rerank(question, contexts, top_k)
         
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Vector retrieval failed, falling back to lexical search: %s", exc)
     
     return _lexical_query(question, top_k, scope)
 

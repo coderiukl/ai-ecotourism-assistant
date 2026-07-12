@@ -19,9 +19,8 @@ from app.services.prompts import fallback_answer, messages
 
 logger = logging.getLogger(__name__)
 
-_INTERNAL_WORD_RE = re.compile(
-    r"\b(?:context|CONTEXT|sheet|Sheet|Excel nội bộ|nguồn \d+)\b"
-)
+_INTERNAL_WORD_RE = re.compile(r"\b(?:context|CONTEXT|sheet|Sheet|Excel nội bộ|nguồn \d+)\b")
+
 
 def polish_answer(text: str) -> str:
     answer = str(text or "").strip()
@@ -57,6 +56,7 @@ def _client() -> AsyncOpenAI:
         api_key=OPENAI_API_KEY,
         base_url=OPENAI_BASE_URL,
         timeout=OPENAI_TIMEOUT_SECONDS,
+        max_retries=1,
     )
 
 
@@ -82,13 +82,14 @@ async def complete(
 ) -> tuple[str, str | None]:
     if not configured():
         return polish_answer(fallback_answer(question, contexts, destination)), "missing_openai_api_key"
+
     try:
         response = await _client().chat.completions.create(**_payload(question, contexts, False, destination))
         answer = (response.choices[0].message.content or "").strip()
         return polish_answer(answer or fallback_answer(question, contexts, destination)), None
     except Exception as exc:
         logger.warning("LLM completion failed: %s", exc)
-        return polish_answer(fallback_answer(question, contexts, destination)), str(exc)
+        return polish_answer(fallback_answer(question, contexts, destination)), exc.__class__.__name__
 
 
 async def stream(
@@ -100,16 +101,13 @@ async def stream(
         for char in polish_answer(fallback_answer(question, contexts, destination)):
             yield char
         return
+
     try:
         stream_response = await _client().chat.completions.create(**_payload(question, contexts, True, destination))
-        answer = ""
         async for chunk in stream_response:
             token = chunk.choices[0].delta.content or ""
             if token:
-                answer += token
-                
-        for char in polish_answer(answer):
-            yield char
+                yield token
     except Exception as exc:
         logger.warning("LLM stream failed: %s", exc)
         for char in polish_answer(fallback_answer(question, contexts, destination)):
