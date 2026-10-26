@@ -846,6 +846,7 @@ p {
 .chatbot-page {
   height: 100%;
   min-height: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1092,6 +1093,77 @@ p {
   color: #566b61;
 }
 
+.message-media {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.message-media figure {
+  min-width: min(220px, 72vw);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #dcebe3;
+  border-radius: 12px;
+  background: #f4faf6;
+  scroll-snap-align: start;
+}
+
+.message-media figure.is-hidden {
+  display: none;
+}
+
+.message-media a {
+  display: block;
+  border-bottom: 0;
+  color: inherit;
+}
+
+.message-media img {
+  width: 100%;
+  height: 126px;
+  display: block;
+  object-fit: cover;
+  background: #eaf4ed;
+}
+
+.message-media figcaption {
+  padding: 8px 10px;
+  color: #315648;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.message-sources {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #e3eee7;
+}
+
+.message-sources > span {
+  color: #61786e;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.message-sources a {
+  display: block;
+  color: #176f4b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .user .markdown-message p,
 .user .markdown-message h3,
 .user .markdown-message h4,
@@ -1161,6 +1233,167 @@ p {
 .chat-input button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.finish-experience-btn {
+  margin-top: 30px;
+}
+
+.support-trigger {
+  min-height: 42px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 13px;
+  border: 1px solid #f0c8c5;
+  border-radius: 14px;
+  background: #fff6f5;
+  color: #a5362f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.support-overlay {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+  background: rgba(10, 31, 24, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.support-sheet {
+  width: 100%;
+  max-height: 92%;
+  padding: 18px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(8, 41, 29, 0.26);
+  overflow-y: auto;
+}
+
+.support-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.support-sheet-header small {
+  color: #b43d35;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.support-sheet-header h3 {
+  margin: 4px 0 0;
+  color: #173b2f;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.support-sheet-header button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: #eef6f1;
+  color: #315a49;
+  cursor: pointer;
+}
+
+.lost-guidance {
+  margin: 16px 0;
+  padding: 13px 13px 13px 32px;
+  border-radius: 14px;
+  background: #f4faf6;
+  color: #355c4d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.lost-guidance li + li {
+  margin-top: 5px;
+}
+
+.support-contact-list {
+  display: grid;
+  gap: 9px;
+}
+
+.support-contact {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #dcebe3;
+  border-radius: 15px;
+  background: #fff;
+  color: #244b3c;
+  text-decoration: none;
+}
+
+.support-contact.is-emergency {
+  border-color: #edb9b5;
+  background: #fff4f3;
+  color: #8f2923;
+}
+
+.support-phone-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #e9f6ee;
+  color: #1f875a;
+}
+
+.is-emergency .support-phone-icon {
+  background: #f9dcd9;
+  color: #af332c;
+}
+
+.support-contact b,
+.support-contact strong,
+.support-contact small {
+  display: block;
+}
+
+.support-contact b {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.support-contact strong {
+  margin-top: 2px;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.support-contact small {
+  margin-top: 3px;
+  color: #647b72;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.support-warning {
+  margin: 13px 2px 0;
+  color: #8b4a44;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .quick-questions {

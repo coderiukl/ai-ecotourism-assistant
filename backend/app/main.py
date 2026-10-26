@@ -7,7 +7,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
-from app.core.config import AUTO_BUILD_CHROMA_ON_STARTUP, CORS_ORIGIN_REGEX, CORS_ORIGINS
+from app.core.config import (
+    AUTO_BUILD_CHROMA_ON_STARTUP,
+    CORS_ORIGIN_REGEX,
+    CORS_ORIGINS,
+    DATA_REFRESH_SECONDS,
+    RAG_AUTO_REFRESH,
+)
 from app.core.logging import configure_logging
 from app.db import postgres
 
@@ -15,26 +21,28 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
-def _build_chroma_if_empty() -> None:
+def _refresh_rag_index() -> None:
     from app.rag import vector_store
 
-    current = vector_store.status()
-    if current.get("collection_count", 0) > 0:
-        logger.info("Chroma already has %s docs", current["collection_count"])
-        return
-    
-    result = vector_store.rebuild_collection()
-    logger.info("Chroma rebuilt: %s docs", result.get("collection_count", 0))
+    result = vector_store.refresh_if_stale(force_data_refresh=True)
+    logger.info("RAG refresh finished: %s", result.get("status"))
 
 
-async def _background_chroma_build() -> None:
-    try:
-        await asyncio.sleep(1)
-        await asyncio.to_thread(_build_chroma_if_empty)
-    except asyncio.CancelledError:
-        raise
-    except Exception as exc:
-        logger.warning("Chroma startup build skipped: %s", exc)
+async def _background_rag_maintenance() -> None:
+    await asyncio.sleep(1)
+
+    while True:
+        try:
+            await asyncio.to_thread(_refresh_rag_index)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Automatic RAG refresh skipped: %s", exc)
+
+        if not RAG_AUTO_REFRESH:
+            return
+
+        await asyncio.sleep(DATA_REFRESH_SECONDS)
 
 
 @asynccontextmanager
@@ -42,8 +50,8 @@ async def lifespan(app: FastAPI):
     await postgres.connect()
 
     chroma_task = None
-    if AUTO_BUILD_CHROMA_ON_STARTUP:
-        chroma_task = asyncio.create_task(_background_chroma_build())
+    if AUTO_BUILD_CHROMA_ON_STARTUP or RAG_AUTO_REFRESH:
+        chroma_task = asyncio.create_task(_background_rag_maintenance())
 
     yield
 

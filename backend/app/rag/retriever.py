@@ -14,6 +14,37 @@ from app.db import postgres
 _TOKEN_RE = re.compile(r"[\wÀ-ỹ]+", re.UNICODE)
 logger = logging.getLogger(__name__)
 
+GLOBAL_SHEETS = {
+    "chatbot_intents",
+    "contact_info",
+    "events_culture",
+    "faq",
+    "food_stay",
+    "operation_hours",
+    "safety_emergency",
+    "services_pricing",
+    "transportation",
+    "travel_tips",
+    "weather_info",
+}
+
+PREFERRED_SHEETS = {
+    "price": {"services_pricing", "faq"},
+    "opening_hours": {"operation_hours", "faq", "contact_info"},
+    "activities": {"activities", "destinations", "travel_tips", "photo_spots", "itineraries"},
+    "transport": {"transportation", "maps_navigation", "destinations"},
+    "itinerary": {"itineraries", "activities", "destinations", "operation_hours"},
+    "food_stay": {"food_stay", "travel_tips", "destinations"},
+    "safety": {"safety_emergency", "travel_tips", "contact_info"},
+    "weather": {"weather_info", "travel_tips", "safety_emergency"},
+    "events_culture": {"events_culture", "destinations", "knowledge_base", "faq"},
+    "photography": {"photo_spots", "weather_info", "travel_tips", "destinations"},
+    "family_accessibility": {"travel_tips", "safety_emergency", "activities", "transportation"},
+    "contact": {"contact_info", "maps_navigation"},
+    "facilities": {"services_pricing", "transportation", "contact_info", "destinations"},
+    "general": {"faq", "destinations", "knowledge_base"},
+}
+
 
 def _tokens(text: str) -> set[str]:
     return set(_TOKEN_RE.findall((text or "").lower()))
@@ -53,6 +84,10 @@ def _matches_destination(document: dict[str, Any], scope: dict[str, Any] | None)
     
     if doc_dest_code:
         return False
+
+    sheet = str(document.get("sheet") or document.get("type") or "")
+    if sheet in GLOBAL_SHEETS:
+        return True
 
     text = _normalize(f"{document.get('title', '')}\n{document.get('text', '')}")
     name = _normalize(str(scope.get('name') or ""))
@@ -110,15 +145,26 @@ def _intent_bonus(question: str, document: dict[str, Any]) -> float:
 def _memory_index() -> list[dict[str, Any]]:
     return [{**document, "embedding": embed_text(document["text"])} for document in postgres.rag_documents()]
 
-def _lexical_query(question: str, top_k: int, scope: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _lexical_query(
+    question: str,
+    top_k: int,
+    scope: dict[str, Any] | None = None,
+    intent: str = "general",
+) -> list[dict[str, Any]]:
     query_text = _query_text(question, scope)
     scored = []
+    preferred_sheets = PREFERRED_SHEETS.get(intent, set())
 
     for document in postgres.rag_documents():
         if not _matches_destination(document, scope):
             continue
 
-        score = _lexical_bonus(query_text, document["text"]) + _intent_bonus(question, document)
+        sheet = str(document.get("sheet") or document.get("type") or "")
+        score = (
+            _lexical_bonus(query_text, document["text"])
+            + _intent_bonus(question, document)
+            + (2.25 if sheet in preferred_sheets else 0.0)
+        )
         scored.append((score, document))
 
     scored.sort(key=lambda item: item[0], reverse=True)
@@ -139,14 +185,22 @@ def _lexical_query(question: str, top_k: int, scope: dict[str, Any] | None = Non
     ]
 
 
-def _rerank(question: str, contexts: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
+def _rerank(
+    question: str,
+    contexts: list[dict[str, Any]],
+    top_k: int,
+    intent: str = "general",
+) -> list[dict[str, Any]]:
     scored = []
+    preferred_sheets = PREFERRED_SHEETS.get(intent, set())
 
     for context in contexts:
+        sheet = str(context.get("sheet") or context.get("type") or "")
         score = (
             float(context.get("score") or 0)
             + _lexical_bonus(question, str(context.get("text") or ""))
             + _intent_bonus(question, context)
+            + (2.25 if sheet in preferred_sheets else 0.0)
         )
         scored.append((score, context))
 
@@ -162,44 +216,39 @@ def retrieve(question: str, top_k: int = RAG_TOP_K, destination_id: int | None =
     scope = _destination_scope(destination_id)
     scoped_query = _query_text(question, scope)
 
-    preferred_sheets = {
-        "price": {"services_pricing"},
-        "opening_hours": {"operation_hours"},
-        "activities": {"activities", "destinations", "travel_tips", "photo_spots"},
-        "transport": {"transportation", "maps_navigation", "destinations"},
-        "itinerary": {"itineraries", "activities", "destinations"},
-        "food_stay": {"food_stay", "travel_tips", "destinations"},
-        "safety": {"safety_emergency", "travel_tips", "contact_info"},
-        "general": set(),
-    }
-
     try:
         contexts = vector_store.query(
             scoped_query,
             top_k=max(top_k * 6, 30),
-            dest_code=None if not scope else scope.get("dest_code"),
+            dest_code=None,
         )
 
         contexts = [context for context in contexts if _matches_destination(context, scope)]
-       
-        sheets = preferred_sheets.get(intent, set())
 
-        if sheets: 
-            contexts = sorted(
-                contexts,
-                key=lambda context: (
-                    1 if str(context.get("sheet") or context.get("type") or "") in sheets else 0,
-                    float(context.get("score") or 0),
-                ),
-                reverse=True,
-            )
-        if contexts:
-            return _rerank(question, contexts, top_k)
+        lexical_contexts = _lexical_query(
+            question,
+            max(top_k * 3, 18),
+            scope,
+            intent,
+        )
+        candidates = {
+            str(context.get("id")): context
+            for context in [*contexts, *lexical_contexts]
+            if context.get("id")
+        }
+
+        if candidates:
+            return _rerank(question, list(candidates.values()), top_k, intent)
         
     except Exception as exc:
         logger.warning("Vector retrieval failed, falling back to lexical search: %s", exc)
     
-    return _lexical_query(question, top_k, scope)
+    return _rerank(
+        question,
+        _lexical_query(question, max(top_k * 3, 18), scope, intent),
+        top_k,
+        intent,
+    )
 
 
 def status() -> dict[str, Any]:

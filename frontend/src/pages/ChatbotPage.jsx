@@ -1,7 +1,38 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bot, Send } from 'lucide-react';
+import { ArrowLeft, Bot, PhoneCall, Send, ShieldAlert, X } from 'lucide-react';
 
-import { API_URL } from '../api';
+import { API_URL, assetUrl } from '../api';
+
+const FALLBACK_SUPPORT = {
+  lost_guidance: [
+    'Dừng di chuyển và không tự đi sâu thêm.',
+    'Bật định vị, chia sẻ vị trí và mô tả mốc gần nhất.',
+    'Giữ liên lạc và tiết kiệm pin trong lúc chờ hỗ trợ.',
+  ],
+  contacts: [
+    {
+      kind: 'emergency',
+      name: 'Tổng đài khẩn cấp quốc gia',
+      phone: '112',
+      display_phone: '112',
+      description: 'Cứu nạn khẩn cấp 24/7, miễn phí cuộc gọi.',
+    },
+    {
+      kind: 'management',
+      name: 'Ban quản lý KDL Quốc gia Núi Bà Đen',
+      phone: '02763823378',
+      display_phone: '0276 3823 378',
+      description: 'Hỗ trợ tại khu du lịch và thông tin điểm đến.',
+    },
+    {
+      kind: 'visitor_support',
+      name: 'Sun World Ba Den Mountain',
+      phone: '0327222227',
+      display_phone: '0327 222 227',
+      description: 'Hỗ trợ dịch vụ và vấn đề phát sinh khi tham quan.',
+    },
+  ],
+};
 
 function isSafeUrl(url) {
   return /^(https?:\/\/|mailto:|tel:)/i.test(url);
@@ -218,6 +249,58 @@ function MarkdownMessage({ text }) {
   );
 }
 
+function MessageMedia({ media = [] }) {
+  const images = media.filter((item) => item?.url).slice(0, 3);
+  if (!images.length) return null;
+
+  return (
+    <div className="message-media" aria-label="Hình ảnh liên quan">
+      {images.map((item, index) => {
+        const imageUrl = assetUrl(item.url);
+        const content = (
+          <>
+            <img
+              alt={item.alt || item.caption || 'Ảnh địa điểm'}
+              loading="lazy"
+              onError={(event) => { event.currentTarget.closest('figure')?.classList.add('is-hidden'); }}
+              src={imageUrl}
+            />
+            {(item.caption || item.destination) && (
+              <figcaption>{item.caption || item.destination}</figcaption>
+            )}
+          </>
+        );
+
+        return (
+          <figure key={`${item.url}-${index}`}>
+            {isSafeUrl(item.source_url) ? (
+              <a href={item.source_url} rel="noreferrer" target="_blank">{content}</a>
+            ) : content}
+          </figure>
+        );
+      })}
+    </div>
+  );
+}
+
+function MessageSources({ sources = [] }) {
+  const visibleSources = sources
+    .filter((source) => source?.url && isSafeUrl(source.url))
+    .slice(0, 3);
+  if (!visibleSources.length) return null;
+
+  return (
+    <div className="message-sources">
+      <span>Cập nhật từ Sun World</span>
+      {visibleSources.map((source) => (
+        <a href={source.url} key={source.url} rel="noreferrer" target="_blank">
+          {source.title || 'Xem nguồn chính thức'}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function ChatbotPage({ destination, onBack, onDone }) {
   const [messages, setMessages] = useState([
     {
@@ -229,11 +312,39 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   const [loading, setLoading] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [visibleStreamingText, setVisibleStreamingText] = useState('');
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [support, setSupport] = useState(FALLBACK_SUPPORT);
   const chatBoxRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const prevLoadingRef = useRef(false);
   const sessionIdRef = useRef(`session_${destination?.id || 'default'}_${Date.now()}`);
+
+  useEffect(() => {
+    if (!API_URL) return undefined;
+
+    const controller = new AbortController();
+    fetch(`${API_URL}/api/support`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data?.contacts) && data.contacts.length) setSupport(data);
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!supportOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setSupportOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [supportOpen]);
 
   useEffect(() => {
     if (!loading && prevLoadingRef.current) {
@@ -306,7 +417,11 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
       if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
       const data = await fallbackRes.json();
-      return data.answer || 'AI chưa có câu trả lời phù hợp.';
+      return {
+        text: data.answer || 'AI chưa có câu trả lời phù hợp.',
+        media: data.retrieval?.media || [],
+        sources: data.retrieval?.sources || [],
+      };
     }
 
     try {
@@ -329,6 +444,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
       const decoder = new TextDecoder();
       let botText = '';
+      let botMedia = [];
+      let botSources = [];
       let buffer = '';
 
       while (true) {
@@ -347,7 +464,16 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           const eventName = lines.find((line) => line.startsWith('event: '))?.slice(7);
           const dataLine = lines.find((line) => line.startsWith('data: '));
 
-          if (eventName === 'done') continue;
+          if (eventName === 'done') {
+            if (dataLine) {
+              try {
+                const data = JSON.parse(dataLine.slice(6));
+                botMedia = data.retrieval?.media || [];
+                botSources = data.retrieval?.sources || [];
+              } catch {}
+            }
+            continue;
+          }
           if (dataLine) {
             try {
               const data = JSON.parse(dataLine.slice(6));
@@ -364,11 +490,15 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
       if (buffer.trim()) {
         const lines = buffer.split('\n');
+        const eventName = lines.find((line) => line.startsWith('event: '))?.slice(7);
         const dataLine = lines.find((line) => line.startsWith('data: '));
         if (dataLine) {
           try {
             const data = JSON.parse(dataLine.slice(6));
-            if (data.token) {
+            if (eventName === 'done') {
+              botMedia = data.retrieval?.media || [];
+              botSources = data.retrieval?.sources || [];
+            } else if (data.token) {
               botText += data.token;
               setStreamingText(botText);
               setVisibleStreamingText(botText);
@@ -377,11 +507,19 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
         }
       }
 
-      if (botText) setMessages((prev) => [...prev, { role: 'bot', text: botText }]);
+      if (botText) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'bot', text: botText, media: botMedia, sources: botSources },
+        ]);
+      }
     } catch (e) {
       try {
         const answer = await askWithoutStream();
-        setMessages((prev) => [...prev, { role: 'bot', text: answer }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'bot', text: answer.text, media: answer.media, sources: answer.sources },
+        ]);
         setLoading(false);
         setStreamingText('');
         return;
@@ -418,9 +556,16 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           </div>
         </div>
 
+        <button className="support-trigger" onClick={() => setSupportOpen(true)} type="button">
+          <ShieldAlert size={17} /> Hotline & hỗ trợ khi bị lạc
+        </button>
+
         <div className="quick-questions">
           <button onClick={() => ask('Có gì chơi ở đây?')}>Có gì chơi?</button>
           <button onClick={() => ask('Đi mùa nào đẹp?')}>Đi mùa nào đẹp?</button>
+          <button onClick={() => ask('Giá vé và giờ hoạt động hiện tại thế nào?')}>Giá vé & giờ mở cửa?</button>
+          <button onClick={() => ask('Gợi ý góc chụp ảnh đẹp ở đây')}>Góc chụp đẹp?</button>
+          <button onClick={() => ask('Thời tiết và lưu ý an toàn khi đi là gì?')}>Thời tiết & an toàn?</button>
           <button onClick={() => ask('Có phù hợp cho gia đình không?')}>Phù hợp gia đình?</button>
         </div>
 
@@ -428,6 +573,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           {messages.map((message, index) => (
             <div className={`msg ${message.role === 'user' ? 'user' : 'bot'}`} key={index}>
               <MarkdownMessage text={message.text} />
+              {message.role === 'bot' && <MessageMedia media={message.media} />}
+              {message.role === 'bot' && <MessageSources sources={message.sources} />}
             </div>
           ))}
           {loading && (
@@ -452,11 +599,58 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           </button>
         </form>
 
-        <div style={{ height: 12 }} />
-
-        <button className="primary-btn" onClick={onDone}>
+        <button className="primary-btn finish-experience-btn" onClick={onDone}>
           Hoàn tất trải nghiệm
         </button>
+
+        {supportOpen && (
+          <div className="support-overlay" onClick={() => setSupportOpen(false)} role="presentation">
+            <section
+              aria-labelledby="support-title"
+              aria-modal="true"
+              className="support-sheet"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+            >
+              <div className="support-sheet-header">
+                <div>
+                  <small>Hỗ trợ an toàn</small>
+                  <h3 id="support-title">Khi bị lạc trên Núi Bà Đen</h3>
+                </div>
+                <button aria-label="Đóng" onClick={() => setSupportOpen(false)} type="button">
+                  <X size={19} />
+                </button>
+              </div>
+
+              <ol className="lost-guidance">
+                {(support.lost_guidance || FALLBACK_SUPPORT.lost_guidance).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ol>
+
+              <div className="support-contact-list">
+                {(support.contacts || FALLBACK_SUPPORT.contacts).map((contact) => (
+                  <a
+                    className={`support-contact ${contact.kind === 'emergency' ? 'is-emergency' : ''}`}
+                    href={`tel:${contact.phone}`}
+                    key={`${contact.kind}-${contact.phone}`}
+                  >
+                    <span className="support-phone-icon"><PhoneCall size={18} /></span>
+                    <span>
+                      <b>{contact.name}</b>
+                      <strong>{contact.display_phone || contact.phone}</strong>
+                      <small>{contact.description}</small>
+                    </span>
+                  </a>
+                ))}
+              </div>
+
+              <p className="support-warning">
+                Chỉ gọi 112 khi có nguy hiểm, tai nạn hoặc cần cứu nạn khẩn cấp.
+              </p>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

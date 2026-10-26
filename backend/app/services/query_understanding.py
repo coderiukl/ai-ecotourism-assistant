@@ -85,6 +85,63 @@ INTENT_KEYWORDS: dict[str, set[str]] = {
         "trẻ em",
         "người già",
     },
+    "weather": {
+        "thời tiết",
+        "mưa",
+        "nắng",
+        "mùa khô",
+        "mùa mưa",
+        "săn mây",
+        "nhiệt độ",
+        "mang áo",
+    },
+    "events_culture": {
+        "sự kiện",
+        "lễ hội",
+        "văn hóa",
+        "tâm linh",
+        "hành hương",
+        "lịch sử",
+        "phật giáo",
+    },
+    "photography": {
+        "chụp ảnh",
+        "sống ảo",
+        "góc chụp",
+        "tạo dáng",
+        "hoàng hôn",
+        "bình minh",
+        "check-in",
+    },
+    "family_accessibility": {
+        "gia đình",
+        "trẻ nhỏ",
+        "em bé",
+        "đi cùng em bé",
+        "đi cùng trẻ nhỏ",
+        "xe lăn",
+        "người khuyết tật",
+        "phụ nữ mang thai",
+        "người lớn tuổi",
+    },
+    "contact": {
+        "hotline",
+        "liên hệ",
+        "số điện thoại",
+        "website",
+        "đặt vé",
+        "booking",
+        "địa chỉ",
+    },
+    "facilities": {
+        "nhà vệ sinh",
+        "bãi xe",
+        "tiện ích",
+        "dịch vụ",
+        "wifi",
+        "ghế nghỉ",
+        "mua sắm",
+    },
 }
 
 
@@ -106,10 +163,16 @@ def _has_any(question: str, words: set[str]) -> bool:
 
 
 def _detect_intent(question: str) -> str:
-    for intent, words in INTENT_KEYWORDS.items():
-        if _has_any(question, words):
-            return intent
-    return "general"
+    scores = {
+        intent: sum(
+            max(1, len(keyword.split()))
+            for keyword in keywords
+            if keyword in question
+        )
+        for intent, keywords in INTENT_KEYWORDS.items()
+    }
+    intent, score = max(scores.items(), key=lambda item: item[1])
+    return intent if score > 0 else "general"
 
 
 def understand_query(question: str, destination_name: str | None = None) -> QueryUnderstanding:
@@ -125,7 +188,7 @@ def understand_query(question: str, destination_name: str | None = None) -> Quer
             clarify_question="Bạn muốn hỏi về giá vé, giờ mở cửa, cách đi hay có gì tham quan?",
         )
 
-    if len(tokens) <= 2 and (q in AMBIGUOUS_SHORT_WORDS or intent != "general"):
+    if len(tokens) <= 2 and q in AMBIGUOUS_SHORT_WORDS:
         if intent == "price":
             return QueryUnderstanding(
                 intent=intent,

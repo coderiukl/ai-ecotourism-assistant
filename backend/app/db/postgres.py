@@ -1,15 +1,18 @@
 ﻿from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import threading
+import time
 from functools import lru_cache
 from typing import Any
 from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
 
 from openpyxl import load_workbook
 
-from app.core.config import DATABASE_URL, DATA_PATH
+from app.core.config import DATABASE_URL, DATA_PATH, DATA_REFRESH_SECONDS
 
 try:
     import asyncpg
@@ -26,6 +29,8 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 _pool: Any | None = None
+_refresh_lock = threading.RLock()
+_last_refresh_monotonic = 0.0
 
 
 DB_SHEETS = [
@@ -596,6 +601,48 @@ def clear_data_cache() -> None:
     load_rows.cache_clear()
     destinations.cache_clear()
     rag_documents.cache_clear()
+
+
+def data_revision() -> str:
+    payload = json.dumps(
+        load_rows(),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def refresh_data_if_stale(force: bool = False) -> dict[str, Any]:
+    global _last_refresh_monotonic
+
+    now = time.monotonic()
+    if not force and now - _last_refresh_monotonic < DATA_REFRESH_SECONDS:
+        return {
+            "checked": False,
+            "changed": False,
+            "revision": data_revision(),
+        }
+
+    with _refresh_lock:
+        now = time.monotonic()
+        if not force and now - _last_refresh_monotonic < DATA_REFRESH_SECONDS:
+            return {
+                "checked": False,
+                "changed": False,
+                "revision": data_revision(),
+            }
+
+        previous_revision = data_revision()
+        clear_data_cache()
+        current_revision = data_revision()
+        _last_refresh_monotonic = now
+
+        return {
+            "checked": True,
+            "changed": previous_revision != current_revision,
+            "revision": current_revision,
+        }
 
 
 def data_stats() -> dict[str, Any]:

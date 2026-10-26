@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import QR_CODES, ChatRequest, QRScanRequest, safe_save_chat
 from app.core.config import OPENAI_MODEL
 from app.db import postgres
-from app.rag.retriever import retrieve, status as rag_status
+from app.rag.retriever import status as rag_status
 from app.rag.vector_store import rebuild_collection, rebuild_status
 from app.services import chat_service, llm
 from app.services.query_understanding import understand_query
@@ -59,6 +59,44 @@ def get_destination(destination_id: int):
     return postgres.destinations().get(destination_id, {})
 
 
+@router.get("/api/support")
+def support_contacts():
+    return {
+        "title": "Hotline & hỗ trợ Núi Bà Đen",
+        "lost_guidance": [
+            "Dừng di chuyển và không tự đi sâu thêm.",
+            "Giữ liên lạc, bật định vị và chia sẻ vị trí hiện tại.",
+            "Mô tả mốc gần nhất, tình trạng sức khỏe và số người trong nhóm.",
+        ],
+        "contacts": [
+            {
+                "kind": "emergency",
+                "name": "Tổng đài khẩn cấp quốc gia",
+                "phone": "112",
+                "display_phone": "112",
+                "description": "Cứu nạn khẩn cấp 24/7, miễn phí cuộc gọi.",
+                "source_url": "https://xaydungchinhsach.chinhphu.vn/tong-dai-so-112-tiep-nhan-24-7-cac-thong-tin-ve-su-co-thien-tai-tham-hoa-119250902150528929.htm",
+            },
+            {
+                "kind": "management",
+                "name": "Ban quản lý KDL Quốc gia Núi Bà Đen",
+                "phone": "02763823378",
+                "display_phone": "0276 3823 378",
+                "description": "Hỗ trợ tại khu du lịch và thông tin điểm đến.",
+                "source_url": "https://khudulichnuibaden.tayninh.gov.vn/",
+            },
+            {
+                "kind": "visitor_support",
+                "name": "Sun World Ba Den Mountain",
+                "phone": "0327222227",
+                "display_phone": "0327 222 227",
+                "description": "Hỗ trợ dịch vụ và vấn đề phát sinh khi tham quan.",
+                "source_url": "https://sunworld.vn/ba-den/di-chuyen",
+            },
+        ],
+    }
+
+
 @router.post("/api/chat")
 async def chat(payload: ChatRequest):
     result = await chat_service.answer(
@@ -90,10 +128,11 @@ async def chat_stream(payload: ChatRequest):
     contexts = []
 
     if not query_info.should_clarify:
-        contexts = retrieve(
+        contexts = await chat_service.contexts_for_question(
             payload.message,
-            destination_id=payload.destination_id,
-            intent=query_info.intent,
+            payload.destination_id,
+            query_info.intent,
+            destination_name,
         )
 
     async def events() -> AsyncGenerator[bytes, None]:
@@ -124,6 +163,8 @@ async def chat_stream(payload: ChatRequest):
             "session_id": payload.session_id,
             "intent": query_info.intent,
             "clarified": query_info.should_clarify,
+            "media": chat_service.related_media(destination, contexts),
+            "sources": chat_service.live_sources(contexts),
         }
 
         await safe_save_chat(
@@ -160,6 +201,7 @@ def rebuild_rag(background_tasks: BackgroundTasks):
     if current.get("status") == "running":
         return current
     
+    postgres.refresh_data_if_stale(force=True)
     background_tasks.add_task(rebuild_collection)
     return {"status": "queued", "message": "Chroma rebuild started in background."}
 

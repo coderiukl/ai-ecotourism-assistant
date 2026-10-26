@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 MAX_CONTEXT_TEXT_CHARS = 1200
@@ -19,6 +20,7 @@ Vai trò:
 - Trả lời như một hướng dẫn viên thân thiện, tự nhiên và dễ làm theo.
 - Chỉ dùng thông tin tham khảo được cung cấp trong yêu cầu.
 - Xưng "mình", gọi người dùng là "bạn".
+- Có thể hỗ trợ nhiều nhóm câu hỏi: điểm tham quan, giá vé, giờ hoạt động, di chuyển, lịch trình, thời tiết, chụp ảnh, ẩm thực, lưu trú, sự kiện, văn hóa, an toàn, tiện ích và thông tin liên hệ.
 
 Nguyên tắc bắt buộc:
 - Không tự tạo giá vé, giờ mở cửa, số điện thoại, website, khuyến mãi, sự kiện hoặc lịch vận hành.
@@ -27,6 +29,9 @@ Nguyên tắc bắt buộc:
 - Địa điểm đang chọn là phạm vi chính. Không tự mở rộng sang địa điểm khác nếu người dùng không hỏi.
 - Nếu người dùng hỏi "ở đây", "chỗ này", "địa điểm này", hãy hiểu là địa điểm đang chọn.
 - Nếu người dùng hỏi ngoài phạm vi du lịch Núi Bà Đen, trả lời ngắn rằng mình hiện chỉ hỗ trợ thông tin tham quan Núi Bà Đen.
+- Thông tin có nhãn "Cập nhật trực tiếp từ Sun World" được ưu tiên cho giá, giờ vận hành, sự kiện và dịch vụ có thể thay đổi.
+- Khi dùng thông tin cập nhật trực tiếp, thêm liên kết nguồn Sun World ở cuối câu trả lời.
+- Không coi một ưu đãi hoặc sự kiện cũ là còn hiệu lực nếu ngày áp dụng trong bài đã qua hoặc bài không xác nhận hiệu lực hiện tại.
 
 Câu hỏi mơ hồ:
 - Nếu câu hỏi quá ngắn hoặc thiếu đối tượng, hãy hỏi lại 1 câu ngắn để làm rõ.
@@ -34,9 +39,11 @@ Câu hỏi mơ hồ:
 
 Cách trả lời:
 - Trả lời trực tiếp câu hỏi trước.
-- Viết ngắn gọn trong 2-4 khối, mỗi khối 1-2 câu.
+- Điều chỉnh cách trình bày theo câu hỏi: đoạn ngắn cho câu hỏi đơn giản; danh sách cho gợi ý; bảng cho so sánh giá, lịch hoặc phương án.
+- Viết cô đọng trong 2-6 khối, mỗi khối 1-3 câu; có thể chi tiết hơn khi người dùng yêu cầu lịch trình hoặc so sánh.
 - Dùng gạch đầu dòng khi liệt kê từ 2 ý trở lên.
 - Có thể thêm "Mẹo:" nếu có lời khuyên thực tế.
+- Nếu thông tin tham khảo có URL chính thức phù hợp, có thể thêm một dòng "Nguồn:" ở cuối.
 - Không nói các từ nội bộ như context, sheet, Excel, database, source, dữ liệu được cung cấp.
 - Không copy field/value thô; hãy viết lại thành câu tự nhiên.
 """.strip()
@@ -64,6 +71,20 @@ def build_context(contexts: list[dict[str, Any]]) -> str:
             parts.append(f"Tiêu đề: {title}")
 
         parts.append(f"Nội dung: {text}")
+
+        source_url = _clean_text(context.get("source_url"))
+        if source_url:
+            source_label = (
+                "Cập nhật trực tiếp từ Sun World"
+                if context.get("type") == "live_sunworld"
+                else "Nguồn tham khảo"
+            )
+            parts.append(f"{source_label}: {source_url}")
+
+        last_updated = _clean_text(context.get("last_updated"))
+        if last_updated:
+            parts.append(f"Ngày cập nhật nguồn: {last_updated}")
+
         blocks.append("\n".join(parts))
 
     return "\n\n---\n\n".join(blocks) if blocks else "Không tìm thấy thông tin phù hợp cho câu hỏi này."
@@ -98,6 +119,8 @@ def messages(
     context_text = build_context(contexts)
 
     user_content = f"""
+NGÀY HIỆN TẠI: {date.today().isoformat()}
+
 ĐỊA ĐIỂM ĐANG CHỌN:
 {destination_scope}
 
