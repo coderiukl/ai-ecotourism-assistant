@@ -310,6 +310,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasAsked, setHasAsked] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [visibleStreamingText, setVisibleStreamingText] = useState('');
   const [supportOpen, setSupportOpen] = useState(false);
@@ -394,6 +395,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     const cleanQuestion = question.trim();
     if (!cleanQuestion || loading) return;
 
+    setHasAsked(true);
     setMessages((prev) => [...prev, { role: 'user', text: cleanQuestion }]);
     setInput('');
     setLoading(true);
@@ -560,14 +562,16 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           <ShieldAlert size={17} /> Hotline & hỗ trợ khi bị lạc
         </button>
 
-        <div className="quick-questions">
-          <button onClick={() => ask('Có gì chơi ở đây?')}>Có gì chơi?</button>
-          <button onClick={() => ask('Đi mùa nào đẹp?')}>Đi mùa nào đẹp?</button>
-          <button onClick={() => ask('Giá vé và giờ hoạt động hiện tại thế nào?')}>Giá vé & giờ mở cửa?</button>
-          <button onClick={() => ask('Gợi ý góc chụp ảnh đẹp ở đây')}>Góc chụp đẹp?</button>
-          <button onClick={() => ask('Thời tiết và lưu ý an toàn khi đi là gì?')}>Thời tiết & an toàn?</button>
-          <button onClick={() => ask('Có phù hợp cho gia đình không?')}>Phù hợp gia đình?</button>
-        </div>
+        {!hasAsked && (
+          <div className="quick-questions" aria-label="Câu hỏi gợi ý">
+            <button onClick={() => ask('Có gì chơi ở đây?')}>Có gì chơi?</button>
+            <button onClick={() => ask('Đi mùa nào đẹp?')}>Đi mùa nào đẹp?</button>
+            <button onClick={() => ask('Giá vé và giờ hoạt động hiện tại thế nào?')}>Giá vé & giờ mở cửa?</button>
+            <button onClick={() => ask('Gợi ý góc chụp ảnh đẹp ở đây')}>Góc chụp đẹp?</button>
+            <button onClick={() => ask('Thời tiết và lưu ý an toàn khi đi là gì?')}>Thời tiết & an toàn?</button>
+            <button onClick={() => ask('Có phù hợp cho gia đình không?')}>Phù hợp gia đình?</button>
+          </div>
+        )}
 
         <div className="chat-box" aria-live="polite" ref={chatBoxRef}>
           {messages.map((message, index) => (

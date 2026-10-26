@@ -1398,12 +1398,18 @@ p {
 
 .quick-questions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   margin: 12px 0;
+  padding: 1px 1px 5px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
 }
 
 .quick-questions button {
+  flex: 0 0 auto;
   padding: 8px 10px;
   border: 1px solid #d9eadf;
   border-radius: 999px;
@@ -1411,6 +1417,8 @@ p {
   color: #1f875a;
   cursor: pointer;
   font-size: 12px;
+  white-space: nowrap;
+  scroll-snap-align: start;
 }
 
 .rating {
@@ -1567,7 +1575,7 @@ textarea {
   }
 
   .quick-questions button {
-    flex: 1 1 100%;
+    flex: 0 0 auto;
   }
 }
 
