@@ -15,7 +15,9 @@ function App() {
 
   useEffect(() => {
     async function scanQrFromUrl() {
-      const qrCode = new URLSearchParams(window.location.search).get('qr');
+      const queryQrCode = new URLSearchParams(window.location.search).get('qr');
+      const pathQrCode = decodeURIComponent(window.location.pathname.replace(/^\/+|\/+$/g, ''));
+      const qrCode = queryQrCode || pathQrCode;
       if (!qrCode) return;
 
       try {
@@ -28,7 +30,7 @@ function App() {
         if (data.status === 'valid') {
           setDestination(data.destination || null);
           setStep('video');
-          window.history.replaceState({}, '', window.location.pathname);
+          window.history.replaceState({}, '', '/');
         }
       } catch (e) {
         setStep('qr');
