@@ -3,12 +3,13 @@
 import json
 import logging
 from collections.abc import AsyncGenerator
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import QR_CODES, ChatRequest, QRScanRequest, safe_save_chat
-from app.core.config import OPENAI_MODEL
+from app.core.config import OPENAI_BASE_URL, OPENAI_MODEL
 from app.db import postgres
 from app.rag.retriever import status as rag_status
 from app.rag.vector_store import rebuild_collection, rebuild_status
@@ -29,6 +30,11 @@ def api_status():
     return {
         "data": postgres.data_stats(),
         "postgres_enabled": postgres.enabled(),
+        "ai": {
+            "configured": llm.configured(),
+            "model": OPENAI_MODEL,
+            "provider_host": urlsplit(OPENAI_BASE_URL).hostname or "",
+        },
     }
 
 

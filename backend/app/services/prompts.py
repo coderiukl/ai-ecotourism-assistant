@@ -82,7 +82,9 @@ Cách trả lời:
 - Viết cô đọng trong 2-6 khối, mỗi khối 1-3 câu; có thể chi tiết hơn khi người dùng yêu cầu lịch trình hoặc so sánh.
 - Dùng gạch đầu dòng khi liệt kê từ 2 ý trở lên.
 - Có thể thêm "Mẹo:" nếu có lời khuyên thực tế.
-- Nếu thông tin tham khảo có URL chính thức phù hợp, có thể thêm một dòng "Nguồn:" ở cuối.
+- Luôn có khoảng trắng giữa từ và số, ví dụ "chiều 15:30" và "30 phút".
+- Không đặt URL sát ngay sau câu. Nếu cần dẫn nguồn, để trên một dòng riêng theo mẫu: "Nguồn: [Xem trang chính thức](URL)".
+- Chỉ dẫn tối đa 2 nguồn phù hợp nhất; không in URL dài trực tiếp trong đoạn văn.
 - Không nói các từ nội bộ như context, sheet, Excel, database, source, dữ liệu được cung cấp.
 - Không copy field/value thô; hãy viết lại thành câu tự nhiên.
 """.strip()

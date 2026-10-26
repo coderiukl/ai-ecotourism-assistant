@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bot, PhoneCall, Send, ShieldAlert, X } from 'lucide-react';
+import { ArrowLeft, Bot, PhoneCall, Send, X } from 'lucide-react';
 
 import { API_URL, assetUrl } from '../api';
 
@@ -74,7 +74,7 @@ function renderInline(text, keyPrefix) {
       const href = token.replace(/[.,;:!?]+$/, '');
       parts.push(
         <a href={href} key={key} rel="noreferrer" target="_blank">
-          {href}
+          Mở nguồn chính thức ↗
         </a>,
       );
       if (href.length < token.length) parts.push(token.slice(href.length));
@@ -556,11 +556,18 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
             </div>
             <h2>Hỏi AI Guide</h2>
           </div>
+          <button
+            aria-controls="support-dialog"
+            aria-expanded={supportOpen}
+            aria-label="Mở hotline và hỗ trợ khi bị lạc"
+            className="support-trigger"
+            onClick={() => setSupportOpen(true)}
+            title="Hotline & hỗ trợ"
+            type="button"
+          >
+            <PhoneCall aria-hidden="true" size={21} />
+          </button>
         </div>
-
-        <button className="support-trigger" onClick={() => setSupportOpen(true)} type="button">
-          <ShieldAlert size={17} /> Hotline & hỗ trợ khi bị lạc
-        </button>
 
         {!hasAsked && (
           <div className="quick-questions" aria-label="Câu hỏi gợi ý">
@@ -613,6 +620,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
               aria-labelledby="support-title"
               aria-modal="true"
               className="support-sheet"
+              id="support-dialog"
               onClick={(event) => event.stopPropagation()}
               role="dialog"
             >

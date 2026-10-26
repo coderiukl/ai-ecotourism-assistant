@@ -5,7 +5,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(override=False)
+# Always locate the backend environment file from this module. Relying on the
+# process working directory makes `uvicorn` and Docker load different configs.
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(_BACKEND_DIR / ".env", override=False)
 
 
 def _bool(name: str, default: bool = False) -> bool:
@@ -23,7 +26,7 @@ def _int(name: str, default: int) -> int:
 
 
 APP_DIR = Path(__file__).resolve().parents[1]
-BACKEND_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = _BACKEND_DIR
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", Path(__file__).resolve().parents[3]))
 
 DATA_PATH = Path(
