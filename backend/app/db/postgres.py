@@ -5,7 +5,7 @@ import json
 import logging
 from functools import lru_cache
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
 
 from openpyxl import load_workbook
 
@@ -289,6 +289,27 @@ def image_url_for_dest(fallback_url: str = "") -> str:
     return fallback_url.strip()
 
 
+def google_maps_url_for_dest(
+    navigation: dict[str, str],
+    name: str,
+    location: str,
+) -> str:
+    configured_url = navigation.get("google_maps_search_url", "").strip()
+
+    if configured_url.startswith(
+        ("https://www.google.com/maps/", "https://maps.google.com/")
+    ):
+        return configured_url
+
+    query = " ".join(
+        value for value in (name, location, "Tây Ninh, Việt Nam") if value
+    )
+    return (
+        "https://www.google.com/maps/search/?api=1&query="
+        f"{quote_plus(query)}"
+    )
+
+
 def _row_to_dict(
     headers: list[str],
     row: tuple[Any, ...],
@@ -418,11 +439,18 @@ def destinations() -> dict[int, dict[str, Any]]:
     sheets = load_rows()
 
     media_by_dest: dict[str, dict[str, str]] = {}
+    navigation_by_dest: dict[str, dict[str, str]] = {}
 
     for media in sheets.get("media_assets", []):
         media_by_dest.setdefault(
             media.get("dest_id", ""),
             media,
+        )
+
+    for navigation in sheets.get("maps_navigation", []):
+        navigation_by_dest.setdefault(
+            navigation.get("dest_id", ""),
+            navigation,
         )
 
     result: dict[int, dict[str, Any]] = {}
@@ -433,16 +461,16 @@ def destinations() -> dict[int, dict[str, Any]]:
     ):
         dest_id = record.get("dest_id", "")
         media = media_by_dest.get(dest_id, {})
+        navigation = navigation_by_dest.get(dest_id, {})
+        name = record.get("name", "Điểm đến Núi Bà Đen")
+        location = record.get("location", "")
 
         result[index] = {
             "id": index,
             "dest_code": dest_id,
-            "name": record.get(
-                "name",
-                "Điểm đến Núi Bà Đen",
-            ),
+            "name": name,
             "category": record.get("category", ""),
-            "location": record.get("location", ""),
+            "location": location,
             "short_description": record.get(
                 "description_short",
                 "",
@@ -465,6 +493,18 @@ def destinations() -> dict[int, dict[str, Any]]:
             "transport": record.get("transport", ""),
             "seo_keyword": record.get("seo_keyword", ""),
             "source_url": record.get("source_url", ""),
+            "google_maps_url": google_maps_url_for_dest(
+                navigation,
+                name,
+                location,
+            ),
+            "map_place_name": navigation.get("place_name", ""),
+            "map_area": navigation.get("area", ""),
+            "navigation_note": navigation.get("navigation_note", ""),
+            "coordinates_or_altitude": navigation.get(
+                "coordinates_or_altitude",
+                "",
+            ),
             "image_url": image_url_for_dest(
                 media.get("image_url", "")
             ),

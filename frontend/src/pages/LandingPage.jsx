@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MapPin, MessageCircle, Mountain, Sparkles, Trees } from 'lucide-react';
+import { ArrowLeft, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees } from 'lucide-react';
 
 import { API_URL, assetUrl } from '../api';
 
@@ -208,7 +208,24 @@ export default function LandingPage({ destination, onBack, onNext }) {
                 {selectedDestination.location || 'Tây Ninh, Việt Nam'}
               </b>
               <p>{typedText}<span className="typing-cursor" /></p>
+              {selectedDestination.navigation_note && (
+                <small className="navigation-note">
+                  {selectedDestination.navigation_note}
+                </small>
+              )}
             </div>
+          )}
+
+          {selectedDestination?.google_maps_url && (
+            <a
+              className="maps-link"
+              href={selectedDestination.google_maps_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Mở chỉ đường đến ${selectedDestination.name} trên Google Maps`}
+            >
+              <Navigation size={17} /> Mở Google Maps
+            </a>
           )}
 
           <button className="primary-btn" disabled={!selectedDestination} onClick={() => onNext(selectedDestination)}>
