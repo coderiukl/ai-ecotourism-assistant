@@ -78,6 +78,7 @@ export default function LandingPage({ destination, onBack, onNext }) {
   const [selectedId, setSelectedId] = useState(null);
   const [typedText, setTypedText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const [thumbnailFrame, setThumbnailFrame] = useState(0);
 
   useEffect(() => {
     async function loadDestinations() {
@@ -115,6 +116,10 @@ export default function LandingPage({ destination, onBack, onNext }) {
     if (!activeCategory) return [];
     return destinations.filter((item) => categoryFor(item) === activeCategory);
   }, [activeCategory, destinations]);
+  const hasAnimatedThumbnails = useMemo(
+    () => filteredDestinations.some((item) => destinationMedia(item).length > 1),
+    [filteredDestinations],
+  );
 
   const activeLabel = LOCATION_CATEGORIES.find((item) => item.key === activeCategory)?.label;
   const selectedMedia = useMemo(
@@ -124,6 +129,23 @@ export default function LandingPage({ destination, onBack, onNext }) {
   const activeMedia = selectedMedia[activeMediaIndex] || selectedMedia[0];
   const heroImageUrl = assetUrl(activeMedia?.url || filteredDestinations[0]?.image_url);
   const fullText = destinationText(selectedDestination);
+
+  useEffect(() => {
+    setThumbnailFrame(0);
+  }, [activeCategory]);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!activeCategory || selectedId || !hasAnimatedThumbnails || prefersReducedMotion) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setThumbnailFrame((current) => current + 1);
+    }, 3800);
+
+    return () => window.clearInterval(timer);
+  }, [activeCategory, hasAnimatedThumbnails, selectedId]);
 
   useEffect(() => {
     setActiveMediaIndex(0);
@@ -234,10 +256,32 @@ export default function LandingPage({ destination, onBack, onNext }) {
           {activeCategory && !selectedDestination && (
             <div className="area-destination-list">
               {filteredDestinations.map((item) => {
-                const imageUrl = assetUrl(item.image_url);
+                const itemMedia = destinationMedia(item);
+                const thumbnailIndex = itemMedia.length ? thumbnailFrame % itemMedia.length : 0;
                 return (
                   <button className="area-destination-card" key={item.id || item.dest_code || item.name} onClick={() => setSelectedId(item.id)} type="button">
-                    <span className="area-destination-thumb" style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined} />
+                    <span className="area-destination-thumb">
+                      {itemMedia.length > 0 && (
+                        <span
+                          className="area-destination-thumb-track"
+                          style={{ transform: `translateX(-${thumbnailIndex * 100}%)` }}
+                        >
+                          {itemMedia.map((media, index) => (
+                            <img
+                              key={`${media.id || media.url}-${index}`}
+                              src={assetUrl(media.url)}
+                              alt={media.alt_text || media.caption || `${item.name} ${index + 1}`}
+                              loading="lazy"
+                            />
+                          ))}
+                        </span>
+                      )}
+                      {itemMedia.length > 1 && (
+                        <span className="area-destination-photo-count">
+                          {thumbnailIndex + 1}/{itemMedia.length}
+                        </span>
+                      )}
+                    </span>
                     <span>
                       <b>{item.name}</b>
                       <small><MapPin size={13} /> {item.location || 'Tây Ninh, Việt Nam'}</small>

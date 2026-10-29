@@ -16,6 +16,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend .
+COPY nui_ba_den_tourism_database.xlsx /app/nui_ba_den_tourism_database.xlsx
 
 EXPOSE 8000
 

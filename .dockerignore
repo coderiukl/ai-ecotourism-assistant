@@ -12,3 +12,4 @@ backend/chroma_db/
 images/
 nui_ba_den_tourism_database.xlsx
 *.xlsx
+!nui_ba_den_tourism_database.xlsx
