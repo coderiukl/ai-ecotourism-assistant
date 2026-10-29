@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees, X } from 'lucide-react';
 
 import { API_URL, assetUrl } from '../api';
 
@@ -79,6 +79,7 @@ export default function LandingPage({ destination, onBack, onNext }) {
   const [typedText, setTypedText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [thumbnailFrame, setThumbnailFrame] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
     async function loadDestinations() {
@@ -127,6 +128,7 @@ export default function LandingPage({ destination, onBack, onNext }) {
     [selectedDestination],
   );
   const activeMedia = selectedMedia[activeMediaIndex] || selectedMedia[0];
+  const lightboxMedia = lightboxIndex === null ? null : selectedMedia[lightboxIndex];
   const heroImageUrl = assetUrl(activeMedia?.url || filteredDestinations[0]?.image_url);
   const fullText = destinationText(selectedDestination);
 
@@ -149,7 +151,25 @@ export default function LandingPage({ destination, onBack, onNext }) {
 
   useEffect(() => {
     setActiveMediaIndex(0);
+    setLightboxIndex(null);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setLightboxIndex(null);
+      if (event.key === 'ArrowLeft' && selectedMedia.length > 1) {
+        setLightboxIndex((current) => (current === 0 ? selectedMedia.length - 1 : current - 1));
+      }
+      if (event.key === 'ArrowRight' && selectedMedia.length > 1) {
+        setLightboxIndex((current) => (current + 1) % selectedMedia.length);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex, selectedMedia.length]);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -321,7 +341,10 @@ export default function LandingPage({ destination, onBack, onNext }) {
                           <button
                             className={`gallery-thumbnail${index === activeMediaIndex ? ' is-active' : ''}`}
                             key={`${media.id || media.url}-${index}`}
-                            onClick={() => setActiveMediaIndex(index)}
+                            onClick={() => {
+                              setActiveMediaIndex(index);
+                              setLightboxIndex(index);
+                            }}
                             type="button"
                             aria-label={`Xem ảnh ${index + 1}: ${media.alt_text || media.caption || selectedDestination.name}`}
                             aria-current={index === activeMediaIndex ? 'true' : undefined}
@@ -374,6 +397,63 @@ export default function LandingPage({ destination, onBack, onNext }) {
           </button>
         </div>
       </div>
+
+      {lightboxMedia && (
+        <div
+          className="media-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Xem ảnh lớn ${selectedDestination?.name || ''}`}
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            className="media-lightbox-close"
+            type="button"
+            onClick={() => setLightboxIndex(null)}
+            aria-label="Đóng ảnh lớn"
+          >
+            <X size={22} />
+          </button>
+
+          {selectedMedia.length > 1 && (
+            <>
+              <button
+                className="media-lightbox-nav is-previous"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setLightboxIndex((current) => (current === 0 ? selectedMedia.length - 1 : current - 1));
+                }}
+                aria-label="Ảnh trước"
+              >
+                <ChevronLeft size={28} />
+              </button>
+              <button
+                className="media-lightbox-nav is-next"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setLightboxIndex((current) => (current + 1) % selectedMedia.length);
+                }}
+                aria-label="Ảnh tiếp theo"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </>
+          )}
+
+          <figure className="media-lightbox-content" onClick={(event) => event.stopPropagation()}>
+            <img
+              src={assetUrl(lightboxMedia.url)}
+              alt={lightboxMedia.alt_text || lightboxMedia.caption || selectedDestination?.name || ''}
+            />
+            <figcaption>
+              <span>{lightboxIndex + 1}/{selectedMedia.length}</span>
+              {lightboxMedia.caption || lightboxMedia.alt_text || selectedDestination?.name}
+            </figcaption>
+          </figure>
+        </div>
+      )}
     </div>
   );
 }
