@@ -161,6 +161,9 @@ async def connect() -> None:
                 timeout=10,
                 command_timeout=30,
                 ssl="require",
+                # DB chạy sau pgbouncer ở chế độ transaction/statement pooling,
+                # không hỗ trợ prepared statement phía server của asyncpg.
+                statement_cache_size=0,
             ),
             timeout=15,
         )

@@ -14,9 +14,10 @@ services:
       AUTO_BUILD_CHROMA_ON_STARTUP: "true"
     volumes:
       - chroma_data:/app/chroma_db
+      - hf_cache:/root/.cache/huggingface
       - ./backend/app:/app/app:ro
       - ./nui_ba_den_tourism_database.xlsx:/app/nui_ba_den_tourism_database.xlsx:ro
-      
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate --url http://backend:8000
@@ -25,3 +26,4 @@ services:
 
 volumes:
   chroma_data:
+  hf_cache:
