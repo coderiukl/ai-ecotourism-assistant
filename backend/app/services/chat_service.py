@@ -96,6 +96,13 @@ def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, str]]:
     return sources
 
 
+# Only hit the live Sun World scraper for intents where prices/hours/events
+# actually change over time. Running it on every question (incl. greetings and
+# general chit-chat) was the main reason a Sun World link showed up on almost
+# every reply regardless of relevance.
+VOLATILE_INTENTS = {"price", "opening_hours", "events_culture", "contact", "facilities"}
+
+
 async def contexts_for_question(
     question: str,
     destination_id: int | None,
@@ -108,7 +115,11 @@ async def contexts_for_question(
         destination_id=destination_id,
         intent=intent,
     )
-    live_contexts = await sunworld_search.search(question, destination_name)
+    live_contexts = (
+        await sunworld_search.search(question, destination_name)
+        if intent in VOLATILE_INTENTS
+        else []
+    )
     seen_ids: set[str] = set()
     merged: list[dict[str, Any]] = []
 
