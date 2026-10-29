@@ -294,6 +294,48 @@ def image_url_for_dest(fallback_url: str = "") -> str:
     return fallback_url.strip()
 
 
+def _media_sort_key(media: dict[str, str]) -> tuple[int, int, str]:
+    """Put the cover first, then keep the configured gallery order stable."""
+    is_primary = media.get("is_primary", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "x",
+    }
+
+    try:
+        sort_order = int(media.get("sort_order", "") or 999999)
+    except ValueError:
+        sort_order = 999999
+
+    return (0 if is_primary else 1, sort_order, media.get("media_id", ""))
+
+
+def _destination_media(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    images = [
+        row
+        for row in rows
+        if row.get("media_type", "image").lower() == "image"
+        and row.get("image_url", "").strip()
+    ]
+    images.sort(key=_media_sort_key)
+
+    return [
+        {
+            "id": media.get("media_id", ""),
+            "type": media.get("media_type", "image"),
+            "url": image_url_for_dest(media.get("image_url", "")),
+            "caption": media.get("caption", ""),
+            "alt_text": media.get("alt_text", ""),
+            "source_url": media.get("source_url", ""),
+            "is_primary": media.get("is_primary", ""),
+            "sort_order": media.get("sort_order", ""),
+        }
+        for media in images
+    ]
+
+
 def google_maps_url_for_dest(
     navigation: dict[str, str],
     name: str,
@@ -443,14 +485,11 @@ def load_rows() -> dict[str, list[dict[str, str]]]:
 def destinations() -> dict[int, dict[str, Any]]:
     sheets = load_rows()
 
-    media_by_dest: dict[str, dict[str, str]] = {}
+    media_by_dest: dict[str, list[dict[str, str]]] = {}
     navigation_by_dest: dict[str, dict[str, str]] = {}
 
     for media in sheets.get("media_assets", []):
-        media_by_dest.setdefault(
-            media.get("dest_id", ""),
-            media,
-        )
+        media_by_dest.setdefault(media.get("dest_id", ""), []).append(media)
 
     for navigation in sheets.get("maps_navigation", []):
         navigation_by_dest.setdefault(
@@ -465,7 +504,8 @@ def destinations() -> dict[int, dict[str, Any]]:
         start=1,
     ):
         dest_id = record.get("dest_id", "")
-        media = media_by_dest.get(dest_id, {})
+        media_assets = _destination_media(media_by_dest.get(dest_id, []))
+        cover = media_assets[0] if media_assets else {}
         navigation = navigation_by_dest.get(dest_id, {})
         name = record.get("name", "Điểm đến Núi Bà Đen")
         location = record.get("location", "")
@@ -511,10 +551,11 @@ def destinations() -> dict[int, dict[str, Any]]:
                 "",
             ),
             "image_url": image_url_for_dest(
-                media.get("image_url", "")
+                cover.get("url", "")
             ),
-            "image_caption": media.get("caption", ""),
-            "image_alt": media.get("alt_text", ""),
+            "image_caption": cover.get("caption", ""),
+            "image_alt": cover.get("alt_text", ""),
+            "media_assets": media_assets,
         }
 
     return result

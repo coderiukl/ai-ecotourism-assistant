@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees } from 'lucide-react';
 
 import { API_URL, assetUrl } from '../api';
 
@@ -56,11 +56,28 @@ function destinationText(destination) {
     .join(' ');
 }
 
+function destinationMedia(destination) {
+  const gallery = Array.isArray(destination?.media_assets)
+    ? destination.media_assets.filter((media) => media?.url)
+    : [];
+
+  if (gallery.length) return gallery;
+  if (!destination?.image_url) return [];
+
+  return [{
+    id: `${destination.id || destination.dest_code || 'destination'}-cover`,
+    url: destination.image_url,
+    caption: destination.image_caption || '',
+    alt_text: destination.image_alt || destination.name || '',
+  }];
+}
+
 export default function LandingPage({ destination, onBack, onNext }) {
   const [destinations, setDestinations] = useState(destination ? [destination] : []);
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [typedText, setTypedText] = useState('');
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
 
   useEffect(() => {
     async function loadDestinations() {
@@ -100,8 +117,28 @@ export default function LandingPage({ destination, onBack, onNext }) {
   }, [activeCategory, destinations]);
 
   const activeLabel = LOCATION_CATEGORIES.find((item) => item.key === activeCategory)?.label;
-  const heroImageUrl = assetUrl(selectedDestination?.image_url || filteredDestinations[0]?.image_url);
+  const selectedMedia = useMemo(
+    () => destinationMedia(selectedDestination),
+    [selectedDestination],
+  );
+  const activeMedia = selectedMedia[activeMediaIndex] || selectedMedia[0];
+  const heroImageUrl = assetUrl(activeMedia?.url || filteredDestinations[0]?.image_url);
   const fullText = destinationText(selectedDestination);
+
+  useEffect(() => {
+    setActiveMediaIndex(0);
+  }, [selectedId]);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (selectedMedia.length < 2 || prefersReducedMotion) return undefined;
+
+    const timer = window.setInterval(() => {
+      setActiveMediaIndex((current) => (current + 1) % selectedMedia.length);
+    }, 4500);
+
+    return () => window.clearInterval(timer);
+  }, [selectedId, selectedMedia.length]);
 
   useEffect(() => {
     setTypedText('');
@@ -138,6 +175,16 @@ export default function LandingPage({ destination, onBack, onNext }) {
   function openCategory(key) {
     setActiveCategory(key);
     setSelectedId(null);
+  }
+
+  function showPreviousMedia() {
+    setActiveMediaIndex((current) => (
+      current === 0 ? selectedMedia.length - 1 : current - 1
+    ));
+  }
+
+  function showNextMedia() {
+    setActiveMediaIndex((current) => (current + 1) % selectedMedia.length);
   }
 
   return (
@@ -203,6 +250,56 @@ export default function LandingPage({ destination, onBack, onNext }) {
 
           {selectedDestination && (
             <div className="glass-card selected-detail-card">
+              {selectedMedia.length > 0 && (
+                <div className="destination-gallery" aria-label={`Ảnh ${selectedDestination.name}`}>
+                  <div className="gallery-toolbar">
+                    <span>{activeMediaIndex + 1}/{selectedMedia.length}</span>
+                    {selectedMedia.length > 1 && (
+                      <div className="gallery-controls">
+                        <button type="button" onClick={showPreviousMedia} aria-label="Ảnh trước">
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button type="button" onClick={showNextMedia} aria-label="Ảnh tiếp theo">
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="gallery-thumbnail-viewport">
+                    <div
+                      className="gallery-thumbnail-track"
+                      style={{ transform: `translateX(-${Math.max(0, activeMediaIndex - 1) * 82}px)` }}
+                    >
+                      {selectedMedia.map((media, index) => {
+                        const thumbnailUrl = assetUrl(media.url);
+                        return (
+                          <button
+                            className={`gallery-thumbnail${index === activeMediaIndex ? ' is-active' : ''}`}
+                            key={`${media.id || media.url}-${index}`}
+                            onClick={() => setActiveMediaIndex(index)}
+                            type="button"
+                            aria-label={`Xem ảnh ${index + 1}: ${media.alt_text || media.caption || selectedDestination.name}`}
+                            aria-current={index === activeMediaIndex ? 'true' : undefined}
+                          >
+                            <img
+                              src={thumbnailUrl}
+                              alt={media.alt_text || media.caption || `${selectedDestination.name} ${index + 1}`}
+                              loading="lazy"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {(activeMedia?.caption || activeMedia?.alt_text) && (
+                    <small className="gallery-caption">
+                      {activeMedia.caption || activeMedia.alt_text}
+                    </small>
+                  )}
+                </div>
+              )}
+
               <b>
                 <MapPin size={16} style={{ verticalAlign: 'middle' }} />{' '}
                 {selectedDestination.location || 'Tây Ninh, Việt Nam'}
