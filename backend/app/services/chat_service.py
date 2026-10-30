@@ -13,7 +13,11 @@ def related_media(
     destination: dict[str, Any] | None,
     contexts: list[dict[str, Any]],
     limit: int = 3,
+    intent: str | None = None,
 ) -> list[dict[str, str]]:
+    if intent is not None and intent not in MEDIA_INTENTS:
+        return []
+
     destinations = list(postgres.destinations().values())
     by_code = {
         str(item.get("dest_code") or "").strip(): item
@@ -99,9 +103,10 @@ def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, str]]:
     return sources
 
 
-# Volatile questions always need a current external check. Other substantive
-# questions also search the official source so the model can supplement local
-# RAG data; short social messages are skipped to avoid irrelevant links.
+# Only volatile questions (price, hours, events, contact, facilities) justify
+# a live external check and the "Cập nhật từ Sun World" source link that
+# comes with it — every other question stays on local RAG data so the chat
+# doesn't clutter every reply with links/sources it doesn't need.
 VOLATILE_INTENTS = {"price", "opening_hours", "events_culture", "contact", "facilities"}
 SOCIAL_MESSAGES = {
     "alo",
@@ -115,12 +120,17 @@ SOCIAL_MESSAGES = {
     "xin chào",
 }
 
+# Media (photo carousel) is only useful when the question is actually about
+# seeing/visiting/experiencing the place — attaching it to every answer
+# (e.g. a price or contact question) just clutters the chat bubble.
+MEDIA_INTENTS = {"activities", "photography", "itinerary", "events_culture", "general"}
+
 
 def should_search_external(question: str, intent: str) -> bool:
     normalized = " ".join(str(question or "").casefold().split())
     if not normalized or normalized in SOCIAL_MESSAGES:
         return False
-    return intent in VOLATILE_INTENTS or len(normalized) >= 6
+    return intent in VOLATILE_INTENTS
 
 
 async def contexts_for_question(
@@ -196,7 +206,7 @@ async def answer(
             "session_id": session_id,
             "intent": query_info.intent,
             "clarified": True,
-            "media": related_media(destination, []),
+            "media": related_media(destination, [], intent=query_info.intent),
         }
         return {
             "answer": query_info.clarify_question,
@@ -223,7 +233,7 @@ async def answer(
         "session_id": session_id,
         "intent": query_info.intent,
         "clarified": False,
-        "media": related_media(destination, contexts),
+        "media": related_media(destination, contexts, intent=query_info.intent),
         "sources": live_sources(contexts),
     }
 

@@ -177,7 +177,7 @@ async def chat_stream(payload: ChatRequest):
             "session_id": payload.session_id,
             "intent": query_info.intent,
             "clarified": query_info.should_clarify,
-            "media": chat_service.related_media(destination, contexts),
+            "media": chat_service.related_media(destination, contexts, intent=query_info.intent),
             "sources": chat_service.live_sources(contexts),
         }
 
