@@ -27,8 +27,18 @@ _URL_RE = re.compile(r"https?://[^\s<>)]+")
 _SOURCE_LINE_RE = re.compile(r"(?im)^\s*(?:nguồn|source)\s*:\s*.*(?:\n|$)")
 
 
+_DANGLING_CONNECTOR_RE = re.compile(
+    r"(?:,\s*)?\b(?:tại|ở|qua|xem(?:\s+thêm)?(?:\s+tại)?|truy cập|chi tiết tại|liên kết|link)\s*:?\s*(?=https?://)",
+    re.IGNORECASE,
+)
+
+
 def _format_urls_and_spacing(text: str) -> str:
     urls: list[str] = []
+    # Drop dangling connector words ("xem thêm tại", "chi tiết tại", ...) that
+    # would otherwise leave an awkward trailing fragment once the bare URL
+    # right after them is stripped out below.
+    text = _DANGLING_CONNECTOR_RE.sub("", text)
 
     def protect_url(match: re.Match[str]) -> str:
         raw_url = match.group(0)
@@ -47,6 +57,10 @@ def _format_urls_and_spacing(text: str) -> str:
     # Repair common token-boundary issues returned by compatible model gateways.
     answer = re.sub(r"(?<!\d[hH])(?<=[^\W\d_])(?=\d)", " ", answer)
     answer = re.sub(r"(?<=\d)(?=(?:phút|giờ|tiếng|km|mét)\b)", " ", answer, flags=re.IGNORECASE)
+    # Collapse whitespace left behind by removed connectors/URLs and fix any
+    # now-dangling punctuation (e.g. "tại  ." -> "tại.").
+    answer = re.sub(r"[ \t]{2,}", " ", answer)
+    answer = re.sub(r"[ \t]+([,.!?;:])", r"\1", answer)
 
     for index, url in enumerate(urls):
         answer = answer.replace(f"__URL_{index}__", url)
