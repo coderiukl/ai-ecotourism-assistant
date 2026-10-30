@@ -93,10 +93,11 @@ def _payload(
     contexts: list[dict[str, Any]],
     stream: bool,
     destination: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return {
         "model": OPENAI_MODEL,
-        "messages": messages(question, contexts, destination),
+        "messages": messages(question, contexts, destination, history),
         "temperature": OPENAI_TEMPERATURE,
         "max_tokens": OPENAI_MAX_TOKENS,
         "stream": stream,
@@ -107,12 +108,15 @@ async def complete(
     question: str,
     contexts: list[dict[str, Any]],
     destination: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> tuple[str, str | None]:
     if not configured():
         return polish_answer(fallback_answer(question, contexts, destination)), "missing_openai_api_key"
 
     try:
-        response = await _client().chat.completions.create(**_payload(question, contexts, False, destination))
+        response = await _client().chat.completions.create(
+            **_payload(question, contexts, False, destination, history)
+        )
         answer = (response.choices[0].message.content or "").strip()
         return polish_answer(answer or fallback_answer(question, contexts, destination)), None
     except Exception as exc:
@@ -124,24 +128,29 @@ async def stream(
     question: str,
     contexts: list[dict[str, Any]],
     destination: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> AsyncGenerator[str, None]:
     if not configured():
         for char in polish_answer(fallback_answer(question, contexts, destination)):
             yield char
         return
 
+    emitted = False
     try:
-        stream_response = await _client().chat.completions.create(**_payload(question, contexts, True, destination))
-        raw_answer = ""
+        stream_response = await _client().chat.completions.create(
+            **_payload(question, contexts, True, destination, history)
+        )
         async for chunk in stream_response:
             token = chunk.choices[0].delta.content or ""
             if token:
-                raw_answer += token
+                emitted = True
+                yield token
 
-        answer = polish_answer(raw_answer or fallback_answer(question, contexts, destination))
-        for start in range(0, len(answer), 24):
-            yield answer[start:start + 24]
+        if not emitted:
+            yield polish_answer(fallback_answer(question, contexts, destination))
     except Exception as exc:
         logger.warning("LLM stream failed: %s", exc)
-        for char in polish_answer(fallback_answer(question, contexts, destination)):
-            yield char
+        if not emitted:
+            yield polish_answer(fallback_answer(question, contexts, destination))
+        else:
+            yield "\n\nKết nối bị gián đoạn. Bạn có thể gửi lại câu hỏi để mình trả lời đầy đủ hơn."

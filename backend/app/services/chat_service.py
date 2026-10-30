@@ -155,7 +155,12 @@ def public_retrieval(metadata: dict[str, Any]) -> dict[str, Any]:
     return public
 
 
-async def answer(question: str, destination_id: int | None = None, session_id: str = "default") -> dict[str, Any]:
+async def answer(
+    question: str,
+    destination_id: int | None = None,
+    session_id: str = "default",
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
     destination = postgres.destinations().get(destination_id) if destination_id else None
     destination_name = destination.get("name") if destination else None
 
@@ -187,7 +192,7 @@ async def answer(question: str, destination_id: int | None = None, session_id: s
         query_info.intent,
         destination_name,
     )
-    text, error = await llm.complete(question, contexts, destination)
+    text, error = await llm.complete(question, contexts, destination, history)
 
     metadata = {
         "top_k": RAG_TOP_K,

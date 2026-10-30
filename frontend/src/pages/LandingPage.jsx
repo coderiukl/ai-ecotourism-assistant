@@ -74,8 +74,10 @@ function destinationMedia(destination) {
 
 export default function LandingPage({ destination, onBack, onNext }) {
   const [destinations, setDestinations] = useState(destination ? [destination] : []);
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const [activeCategory, setActiveCategory] = useState(
+    destination ? categoryFor(destination) : null,
+  );
+  const [selectedId, setSelectedId] = useState(destination?.id ?? null);
   const [typedText, setTypedText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [thumbnailFrame, setThumbnailFrame] = useState(0);

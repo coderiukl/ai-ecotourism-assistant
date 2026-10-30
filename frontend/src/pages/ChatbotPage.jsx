@@ -322,8 +322,6 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
   const sessionIdRef = useRef(`session_${destination?.id || 'default'}_${Date.now()}`);
 
   useEffect(() => {
-    if (!API_URL) return undefined;
-
     const controller = new AbortController();
     fetch(`${API_URL}/api/support`, { signal: controller.signal })
       .then((response) => {
@@ -395,6 +393,14 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
     const cleanQuestion = question.trim();
     if (!cleanQuestion || loading) return;
 
+    const history = messages
+      .filter((message) => message.role === 'user' || message.role === 'bot')
+      .slice(-8)
+      .map((message) => ({
+        role: message.role === 'bot' ? 'assistant' : 'user',
+        content: message.text,
+      }));
+
     setHasAsked(true);
     setMessages((prev) => [...prev, { role: 'user', text: cleanQuestion }]);
     setInput('');
@@ -404,39 +410,46 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
     const sessionId = sessionIdRef.current;
 
+    const requestBody = JSON.stringify({
+      destination_id: destination?.id ?? null,
+      message: cleanQuestion,
+      session_id: sessionId,
+      history,
+    });
+
     async function askWithoutStream() {
-      if (!API_URL) throw new Error('Missing VITE_API_URL');
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 20000);
 
-      const fallbackRes = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination_id: destination?.id || 1,
-          message: cleanQuestion,
-          session_id: sessionId,
-        }),
-      });
+      try {
+        const fallbackRes = await fetch(`${API_URL}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+          signal: controller.signal,
+        });
 
-      if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
-      const data = await fallbackRes.json();
-      return {
-        text: data.answer || 'AI chưa có câu trả lời phù hợp.',
-        media: data.retrieval?.media || [],
-        sources: data.retrieval?.sources || [],
-      };
+        if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
+        const data = await fallbackRes.json();
+        return {
+          text: data.answer || 'AI chưa có câu trả lời phù hợp.',
+          media: data.retrieval?.media || [],
+          sources: data.retrieval?.sources || [],
+        };
+      } finally {
+        window.clearTimeout(timeout);
+      }
     }
 
     try {
-      if (!API_URL) throw new Error('Missing VITE_API_URL');
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 45000);
 
       const res = await fetch(`${API_URL}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          destination_id: destination?.id || 1,
-          message: cleanQuestion,
-          session_id: sessionId,
-        }),
+        body: requestBody,
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -489,6 +502,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           }
         }
       }
+
+      window.clearTimeout(timeout);
 
       if (buffer.trim()) {
         const lines = buffer.split('\n');

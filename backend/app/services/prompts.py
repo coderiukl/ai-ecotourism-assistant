@@ -130,6 +130,7 @@ def messages(
     question: str,
     contexts: list[dict[str, Any]],
     destination: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, str]]:
     clean_question = _clean_text(question)
     destination_scope = build_destination_scope(destination)
@@ -153,8 +154,16 @@ CÂU HỎI CỦA NGƯỜI DÙNG:
 {clean_question}
 """.strip()
 
+    conversation = []
+    for item in (history or [])[-8:]:
+        role = str(item.get("role") or "").strip().lower()
+        content = _clean_text(item.get("content"))[:2000]
+        if role in {"user", "assistant"} and content:
+            conversation.append({"role": role, "content": content})
+
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
+        *conversation,
         {"role": "user", "content": user_content},
     ]
 

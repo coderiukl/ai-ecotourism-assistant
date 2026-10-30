@@ -21,10 +21,29 @@ class QRScanRequest(BaseModel):
     qr_code: str = Field(..., min_length=1)
 
 
+class ChatHistoryItem(BaseModel):
+    role: str
+    content: str = Field(..., min_length=1, max_length=2000)
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        role = value.strip().lower()
+        if role not in {"user", "assistant"}:
+            raise ValueError("role must be user or assistant")
+        return role
+
+    @field_validator("content")
+    @classmethod
+    def strip_content(cls, value: str) -> str:
+        return value.strip()
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     destination_id: int | None = None
     session_id: str = Field("default", min_length=1, max_length=120)
+    history: list[ChatHistoryItem] = Field(default_factory=list, max_length=8)
 
     @field_validator("message", "session_id")
     @classmethod

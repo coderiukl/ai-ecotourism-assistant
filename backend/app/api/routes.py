@@ -109,6 +109,7 @@ async def chat(payload: ChatRequest):
         payload.message,
         payload.destination_id,
         payload.session_id,
+        [item.model_dump() for item in payload.history],
     )
 
     await safe_save_chat(
@@ -153,7 +154,12 @@ async def chat_stream(payload: ChatRequest):
                 body = json.dumps({"token": token}, ensure_ascii=False)
                 yield f"event: token\ndata: {body}\n\n".encode("utf-8")
         else:
-            async for token in llm.stream(payload.message, contexts, destination):
+            async for token in llm.stream(
+                payload.message,
+                contexts,
+                destination,
+                [item.model_dump() for item in payload.history],
+            ):
                 answer += token
                 body = json.dumps({"token": token}, ensure_ascii=False)
                 yield f"event: token\ndata: {body}\n\n".encode("utf-8")
