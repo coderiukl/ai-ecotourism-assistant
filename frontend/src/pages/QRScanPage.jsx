@@ -1,4 +1,10 @@
-import { Camera, Leaf, QrCode } from 'lucide-react';
+import { Camera, Leaf } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+
+import { PUBLIC_APP_URL } from '../api';
+
+const DEMO_QR_CODE = 'ECO_NUI_BA_DEN_001';
+const DEMO_QR_TARGET_URL = `${PUBLIC_APP_URL}/?qr=${encodeURIComponent(DEMO_QR_CODE)}`;
 
 export default function QRScanPage() {
   return (
@@ -20,8 +26,14 @@ export default function QRScanPage() {
           </div>
         </div>
 
-        <div className="qr-frame qr-entry-visual qr-entry-visual-standalone" aria-hidden="true">
-          <QrCode size={120} strokeWidth={1.2} />
+        <div className="qr-frame qr-entry-visual qr-entry-visual-standalone">
+          <div className="qr-code">
+            <QRCodeSVG
+              level="M"
+              size={160}
+              value={DEMO_QR_TARGET_URL}
+            />
+          </div>
           <span>Đưa camera điện thoại vào mã QR tại điểm tham quan</span>
         </div>
       </main>
