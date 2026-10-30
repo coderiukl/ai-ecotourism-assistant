@@ -15,9 +15,9 @@ const LOCATION_CATEGORIES = [
     description: 'Cổng chính, nhà ga, điểm trung chuyển và dịch vụ ở chân núi.',
   },
   {
-    key: 'pagoda',
-    label: 'Khu vực Chùa Bà - Điện Bà',
-    description: 'Các điểm tâm linh, hang động và tuyến tham quan Chùa Bà.',
+    key: 'slope',
+    label: 'Khu vực sườn núi',
+    description: 'Các điểm tâm linh, hang động và tuyến tham quan ở sườn núi.',
   },
 ];
 
@@ -37,7 +37,7 @@ function categoryFor(destination) {
   if (location.includes('dinh')) return 'summit';
   if (location.includes('chan') || location.includes('cong chinh')) return 'foot';
 
-  return 'pagoda';
+  return 'slope';
 }
 
 export default function DashboardPage({ initialDestination, onBack, onSelect }) {
@@ -80,7 +80,7 @@ export default function DashboardPage({ initialDestination, onBack, onSelect }) 
         counts[key] = (counts[key] || 0) + 1;
         return counts;
       },
-      { summit: 0, foot: 0, pagoda: 0 },
+      { summit: 0, foot: 0, slope: 0 },
     );
   }, [destinations]);
 

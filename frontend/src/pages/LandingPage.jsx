@@ -17,9 +17,9 @@ const LOCATION_CATEGORIES = [
     icon: Trees,
   },
   {
-    key: 'pagoda',
-    label: 'Chùa Bà',
-    description: 'Các điểm tâm linh, hang động và tuyến tham quan Chùa Bà.',
+    key: 'slope',
+    label: 'Sườn núi',
+    description: 'Các điểm tâm linh, hang động và tuyến tham quan ở sườn núi.',
     icon: Sparkles,
   },
 ];
@@ -40,7 +40,7 @@ function categoryFor(destination) {
 
   if (text.includes('dinh')) return 'summit';
   if (text.includes('chan') || text.includes('cong chinh') || text.includes('ga ')) return 'foot';
-  return 'pagoda';
+  return 'slope';
 }
 
 function destinationText(destination) {
@@ -74,10 +74,10 @@ function destinationMedia(destination) {
 
 export default function LandingPage({ destination, onBack, onNext }) {
   const [destinations, setDestinations] = useState(destination ? [destination] : []);
-  const [activeCategory, setActiveCategory] = useState(
-    destination ? categoryFor(destination) : null,
-  );
-  const [selectedId, setSelectedId] = useState(destination?.id ?? null);
+  // The QR destination is only used as initial data while the full list loads.
+  // Users must still choose a region, then a destination, before entering AI Guide.
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const [typedText, setTypedText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [thumbnailFrame, setThumbnailFrame] = useState(0);
@@ -107,7 +107,7 @@ export default function LandingPage({ destination, onBack, onNext }) {
         counts[key] = (counts[key] || 0) + 1;
         return counts;
       },
-      { summit: 0, foot: 0, pagoda: 0 },
+      { summit: 0, foot: 0, slope: 0 },
     );
   }, [destinations]);
 
