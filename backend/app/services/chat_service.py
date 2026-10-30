@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from typing import Any
 
 from app.core.config import DEBUG_RETRIEVAL, OPENAI_MODEL, RAG_TOP_K
@@ -125,6 +127,96 @@ SOCIAL_MESSAGES = {
 # (e.g. a price or contact question) just clutters the chat bubble.
 MEDIA_INTENTS = {"activities", "photography", "itinerary", "events_culture", "general"}
 
+_GENERIC_DESTINATION_ALIASES = {
+    "ba den",
+    "dia diem",
+    "khu du lich",
+    "nui ba",
+    "nui ba den",
+    "tay ninh",
+}
+
+
+def _normalize_place_name(value: str) -> str:
+    """Make Vietnamese destination names comparable to unaccented user input."""
+    text = unicodedata.normalize("NFD", str(value or "").casefold())
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    text = text.replace("đ", "d")
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _destination_aliases(name: str) -> set[str]:
+    normalized = _normalize_place_name(name)
+    aliases = {normalized}
+
+    # Slash/dash-separated names commonly contain the short name visitors use,
+    # for example "Linh Sơn Tiên Thạch Tự / Chùa Bà" -> "chua ba".
+    aliases.update(
+        _normalize_place_name(part)
+        for part in re.split(r"\s*(?:/|[-–—])\s*", name)
+    )
+
+    # Visitors also tend to omit formal prefixes ("Tôn tượng Bồ Tát Di Lặc"
+    # becomes "Di Lặc"). Unique two-or-more-word suffixes cover that case while
+    # avoiding ambiguous single words such as "chùa" or "tượng".
+    words = normalized.split()
+    aliases.update(" ".join(words[index:]) for index in range(1, max(1, len(words) - 1)))
+
+    return {
+        alias
+        for alias in aliases
+        if len(alias.split()) >= 2 and alias not in _GENERIC_DESTINATION_ALIASES
+    }
+
+
+def resolve_destination(
+    question: str,
+    selected_destination_id: int | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> tuple[int | None, dict[str, Any] | None]:
+    """Resolve an explicitly named destination, otherwise retain the UI selection."""
+    destinations = postgres.destinations()
+    aliases_by_destination = {
+        destination_id: _destination_aliases(str(destination.get("name") or ""))
+        for destination_id, destination in destinations.items()
+    }
+    alias_owners: dict[str, set[int]] = {}
+
+    for destination_id, aliases in aliases_by_destination.items():
+        for alias in aliases:
+            alias_owners.setdefault(alias, set()).add(destination_id)
+
+    def match(text: str) -> tuple[int, dict[str, Any]] | None:
+        normalized_text = f" {_normalize_place_name(text)} "
+        matches: list[tuple[int, int, dict[str, Any]]] = []
+
+        for destination_id, aliases in aliases_by_destination.items():
+            for alias in aliases:
+                if len(alias_owners[alias]) == 1 and f" {alias} " in normalized_text:
+                    matches.append((len(alias), destination_id, destinations[destination_id]))
+
+        if not matches:
+            return None
+
+        _, destination_id, destination = max(matches, key=lambda item: item[0])
+        return destination_id, destination
+
+    current_match = match(question)
+    if current_match:
+        return current_match
+
+    # Keep a newly mentioned place active for natural follow-ups such as
+    # "đi tới đó thế nào?", even when the UI was opened from another place.
+    for item in reversed(history or []):
+        if str(item.get("role") or "").strip().lower() != "user":
+            continue
+        history_match = match(str(item.get("content") or ""))
+        if history_match:
+            return history_match
+
+    destination = destinations.get(selected_destination_id) if selected_destination_id else None
+    return selected_destination_id, destination
+
 
 def should_search_external(question: str, intent: str) -> bool:
     normalized = " ".join(str(question or "").casefold().split())
@@ -189,7 +281,8 @@ async def answer(
     session_id: str = "default",
     history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    destination = postgres.destinations().get(destination_id) if destination_id else None
+    requested_destination_id = destination_id
+    destination_id, destination = resolve_destination(question, destination_id, history)
     destination_name = destination.get("name") if destination else None
 
     query_info = understand_query(question, destination_name)
@@ -202,6 +295,7 @@ async def answer(
             "llm_error": None,
             "model": OPENAI_MODEL,
             "destination_id": destination_id,
+            "requested_destination_id": requested_destination_id,
             "destination": destination,
             "session_id": session_id,
             "intent": query_info.intent,
@@ -229,6 +323,7 @@ async def answer(
         "llm_error": error,
         "model": OPENAI_MODEL,
         "destination_id": destination_id,
+        "requested_destination_id": requested_destination_id,
         "destination": destination,
         "session_id": session_id,
         "intent": query_info.intent,

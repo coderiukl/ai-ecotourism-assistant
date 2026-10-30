@@ -114,7 +114,7 @@ async def chat(payload: ChatRequest):
 
     await safe_save_chat(
         payload.session_id,
-        payload.destination_id,
+        result["retrieval"].get("destination_id"),
         payload.message,
         result["answer"],
         result.get("metadata") or result["retrieval"],
@@ -125,10 +125,10 @@ async def chat(payload: ChatRequest):
 
 @router.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest):
-    destination = (
-        postgres.destinations().get(payload.destination_id)
-        if payload.destination_id
-        else None
+    destination_id, destination = chat_service.resolve_destination(
+        payload.message,
+        payload.destination_id,
+        [item.model_dump() for item in payload.history],
     )
     destination_name = destination.get("name") if destination else None
     query_info = understand_query(payload.message, destination_name)
@@ -137,7 +137,7 @@ async def chat_stream(payload: ChatRequest):
     if not query_info.should_clarify:
         contexts = await chat_service.contexts_for_question(
             payload.message,
-            payload.destination_id,
+            destination_id,
             query_info.intent,
             destination_name,
         )
@@ -172,7 +172,8 @@ async def chat_stream(payload: ChatRequest):
             "used_llm": (not query_info.should_clarify) and llm.configured(),
             "llm_error": None,
             "model": OPENAI_MODEL,
-            "destination_id": payload.destination_id,
+            "destination_id": destination_id,
+            "requested_destination_id": payload.destination_id,
             "destination": destination,
             "session_id": payload.session_id,
             "intent": query_info.intent,
@@ -183,7 +184,7 @@ async def chat_stream(payload: ChatRequest):
 
         await safe_save_chat(
             payload.session_id,
-            payload.destination_id,
+            destination_id,
             payload.message,
             answer,
             metadata,
