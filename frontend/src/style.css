@@ -230,6 +230,12 @@ p {
   line-height: 1.5;
 }
 
+.qr-entry-visual-standalone {
+  min-height: 340px;
+  margin-top: 40px;
+  gap: 18px;
+}
+
 .qr-code-form {
   display: grid;
   gap: 8px;
