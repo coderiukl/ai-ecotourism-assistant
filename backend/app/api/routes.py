@@ -164,6 +164,8 @@ async def chat_stream(payload: ChatRequest):
                 body = json.dumps({"token": token}, ensure_ascii=False)
                 yield f"event: token\ndata: {body}\n\n".encode("utf-8")
 
+        answer = llm.polish_answer(answer)
+
         metadata = {
             "top_k": len(contexts),
             "contexts": contexts,
@@ -188,7 +190,10 @@ async def chat_stream(payload: ChatRequest):
         )
 
         public_retrieval = chat_service.public_retrieval(metadata)
-        body = json.dumps({"retrieval": public_retrieval}, ensure_ascii=False)
+        body = json.dumps(
+            {"answer": answer, "retrieval": public_retrieval},
+            ensure_ascii=False,
+        )
         yield f"event: done\ndata: {body}\n\n".encode("utf-8")
 
     return StreamingResponse(

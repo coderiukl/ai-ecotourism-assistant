@@ -58,11 +58,21 @@ Chỉ dùng thông tin tham khảo được cung cấp trong yêu cầu; không 
 
 Với thông tin dễ thay đổi (giá vé, giờ vận hành, cáp treo, buffet, sự kiện, khuyến mãi), nhắc nhẹ là nên kiểm tra lại gần ngày đi — không cần công thức "Lưu ý:" cứng nhắc mỗi lần, chỉ cần tự nhiên lồng vào câu. Đừng coi một ưu đãi hoặc sự kiện cũ còn hiệu lực nếu ngày áp dụng đã qua hoặc bài viết không xác nhận còn hiệu lực hiện tại.
 
-Khi có thông tin được đánh dấu "Cập nhật trực tiếp từ Sun World", đó là nguồn ưu tiên cho dữ liệu dễ thay đổi. Chỉ dẫn link nguồn đó khi nó thực sự liên quan trực tiếp đến câu hỏi và bạn có dùng thông tin từ đó — đừng gắn link theo thói quen nếu câu trả lời không thật sự cần đến nó. Tối đa 1-2 nguồn, đặt trên dòng riêng dạng "Nguồn: [Xem trang chính thức](URL)", không chèn URL giữa câu.
+Khi có thông tin được đánh dấu "Cập nhật trực tiếp từ Sun World", đó là nguồn ưu tiên cho dữ liệu dễ thay đổi. Chỉ dùng thông tin đó khi nó thực sự liên quan trực tiếp đến câu hỏi. Không chèn URL hoặc link vào phần trả lời; giao diện sẽ tự hiển thị tối đa 1-2 nguồn chính thức đã được sử dụng.
 
 Nếu câu hỏi quá ngắn hoặc mơ hồ, hỏi lại một câu ngắn gọn để làm rõ ý, đừng đoán bừa.
 
-Trả lời đi thẳng vào điều người dùng hỏi, theo văn phong hội thoại bình thường — không bắt buộc phải mở đầu hay kết thúc theo khuôn mẫu cố định, và tránh lặp lại y nguyên các câu mở đầu giữa các lượt trả lời. Với lời chào, chào lại tự nhiên và gợi ý ngắn vài điều có thể giúp được, không cần dốc hết thông tin địa điểm ngay. Độ dài và cách trình bày nên theo đúng độ phức tạp của câu hỏi: vài câu cho câu hỏi đơn giản, danh sách khi liệt kê, bảng khi so sánh giá/lịch/phương án, dài hơn khi người dùng cần lịch trình chi tiết. Dùng gạch đầu dòng khi có từ 2 ý trở lên, có thể thêm một gợi ý thực tế kiểu "Mẹo:" nếu hợp lý. Luôn có khoảng trắng giữa chữ và số (ví dụ "chiều 15:30", "30 phút"). Không nhắc đến các từ nội bộ như context, sheet, Excel, database hay "dữ liệu được cung cấp" — viết lại mọi thông tin thành câu văn tự nhiên, không copy nguyên field/value thô.
+QUY CÁCH TRẢ LỜI:
+- Bắt đầu bằng câu trả lời trực tiếp, không lặp lại câu hỏi và không mở đầu bằng lời chào nếu người dùng không chào.
+- Câu hỏi đơn giản: 1-3 đoạn ngắn. Khi có từ 2 ý độc lập trở lên, mỗi ý là một gạch đầu dòng Markdown `- `.
+- Chỉ dùng bảng Markdown khi thực sự so sánh từ 2 phương án trở lên. Không dùng tiêu đề H1/H2; nếu câu trả lời dài, tối đa 2 tiêu đề ngắn dạng `###`.
+- Chỉ thêm tối đa một khối `Mẹo:`, `Lưu ý:` hoặc `Quan trọng:` khi nó đem lại thông tin thiết thực; không in đậm nhãn này.
+- Không kết thúc bằng câu xã giao rập khuôn như "Hy vọng thông tin hữu ích". Chỉ hỏi tiếp khi cần làm rõ hoặc có một bước tiếp theo tự nhiên.
+- Không chèn dòng nguồn, URL thô hoặc link nguồn vào nội dung. Link hành động rõ ràng như Google Maps được phép ở dạng Markdown.
+- Luôn có khoảng trắng giữa chữ và số, ví dụ "chiều 15:30" và "30 phút".
+- Không nhắc đến các từ nội bộ như context, sheet, Excel, database, RAG hay "dữ liệu được cung cấp"; diễn đạt thông tin thành câu tự nhiên, không copy nguyên field/value thô.
+
+Giọng văn thân thiện, ngắn gọn và linh hoạt; tránh lặp lại cùng một câu mở đầu giữa các lượt. Với lời chào, chào lại tự nhiên và gợi ý ngắn vài điều có thể hỗ trợ, không dốc toàn bộ thông tin địa điểm ngay.
 """.strip()
 
 
@@ -228,12 +238,12 @@ def fallback_answer(
         if _has_any(_normalize_text(answer), ("file", "sheet", "database")):
             answer = "Giá vé thay đổi theo tuyến cáp, đối tượng khách và chương trình áp dụng. Mình chưa có mức giá hiện hành đủ chắc chắn để báo bạn."
         if answer:
-            return f"{answer}\n\n**Lưu ý:** Giá có thể thay đổi theo ngày và chương trình ưu đãi; bạn nên kiểm tra lại nguồn chính thức trước khi đi."
+            return f"{answer}\n\nLưu ý: Giá có thể thay đổi theo ngày và chương trình ưu đãi; bạn nên kiểm tra lại nguồn chính thức trước khi đi."
 
     if asks_opening_hours:
         answer = _first_field(fields, "answer", "answer_hint", "operation_hours", "opening_hours", "time", "note")
         if answer:
-            return f"{answer}\n\n**Lưu ý:** Giờ vận hành có thể thay đổi theo ngày hoặc điều kiện thời tiết, bạn nên kiểm tra lại trước chuyến đi."
+            return f"{answer}\n\nLưu ý: Giờ vận hành có thể thay đổi theo ngày hoặc điều kiện thời tiết, bạn nên kiểm tra lại trước chuyến đi."
 
     direct_answer = _first_field(
         fields,

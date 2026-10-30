@@ -19,8 +19,12 @@ from app.services.prompts import fallback_answer, messages
 
 logger = logging.getLogger(__name__)
 
-_INTERNAL_WORD_RE = re.compile(r"\b(?:context|CONTEXT|sheet|Sheet|Excel nội bộ|nguồn \d+)\b")
+_INTERNAL_WORD_RE = re.compile(
+    r"\b(?:context|sheet|excel nội bộ|database|vector store|rag|nguồn \d+)\b",
+    re.IGNORECASE,
+)
 _URL_RE = re.compile(r"https?://[^\s<>)]+")
+_SOURCE_LINE_RE = re.compile(r"(?im)^\s*(?:nguồn|source)\s*:\s*.*(?:\n|$)")
 
 
 def _format_urls_and_spacing(text: str) -> str:
@@ -30,13 +34,14 @@ def _format_urls_and_spacing(text: str) -> str:
         raw_url = match.group(0)
         url = raw_url.rstrip(".,;:!?")
         trailing = raw_url[len(url):]
-        placeholder = f"__URL_{len(urls)}__"
-        urls.append(url)
 
-        # A URL preceded by '(' is already part of a Markdown link.
+        # Preserve explicit action links such as Google Maps, but remove raw
+        # URLs. Official sources are rendered separately by the frontend.
         if match.start() > 0 and text[match.start() - 1] == "(":
+            placeholder = f"__URL_{len(urls)}__"
+            urls.append(url)
             return placeholder + trailing
-        return f"\n\nNguồn: [Xem trang chính thức]({placeholder}){trailing}"
+        return trailing
 
     answer = _URL_RE.sub(protect_url, text)
     # Repair common token-boundary issues returned by compatible model gateways.
@@ -65,7 +70,16 @@ def polish_answer(text: str) -> str:
     for pattern, replacement in replacements:
         answer = re.sub(pattern, replacement, answer)
 
+    answer = _SOURCE_LINE_RE.sub("", answer)
     answer = _format_urls_and_spacing(answer)
+    answer = re.sub(r"\s*[•●▪]\s*", "\n- ", answer)
+    answer = re.sub(r"(^|\n)\s*[-*]\s*", r"\1- ", answer)
+    answer = re.sub(
+        r"(?im)^\*\*(Lưu ý|Mẹo|Gợi ý|Quan trọng):\*\*\s*",
+        r"\1: ",
+        answer,
+    )
+    answer = "\n".join(line.rstrip() for line in answer.splitlines())
     answer = re.sub(r"\s+([,.!?;:])", r"\1", answer)
     answer = re.sub(r"\n{3,}", "\n\n", answer)
 

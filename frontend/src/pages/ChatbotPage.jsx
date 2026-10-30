@@ -115,7 +115,7 @@ function normalizeMarkdownText(text) {
       '\n\n$1:',
     );
 
-  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  const lines = raw.split('\n').map((line) => line.trim());
   const lineType = (line) => {
     if (isMarkdownTableLine(line) || isMarkdownDividerLine(line)) return 'table';
     if (/^(?:[-*]|\u2022)\s+/.test(line) || /^\d+\.\s+/.test(line)) return 'list';
@@ -124,12 +124,16 @@ function normalizeMarkdownText(text) {
   const grouped = [];
 
   lines.forEach((line) => {
+    if (!line) {
+      if (grouped.length && grouped[grouped.length - 1] !== '') grouped.push('');
+      return;
+    }
     const prev = grouped[grouped.length - 1];
     if (prev && lineType(prev) !== lineType(line)) grouped.push('');
     grouped.push(line);
   });
 
-  return grouped.join('\n');
+  return grouped.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
 const CALLOUT_LABEL_PATTERN = /^(L\u01b0u \u00fd|Luu y|M\u1eb9o|Meo|Ngu\u1ed3n|Nguon|G\u1ee3i \u00fd|Goi y|C\u1ea7n bi\u1ebft|Can biet|Quan tr\u1ecdng|Quan trong):/i;
@@ -257,8 +261,8 @@ function MessageMedia({ media = [] }) {
     <div className="message-media" aria-label="Hình ảnh liên quan">
       {images.map((item, index) => {
         const imageUrl = assetUrl(item.url);
-        const content = (
-          <>
+        return (
+          <figure key={`${item.url}-${index}`}>
             <img
               alt={item.alt || item.caption || 'Ảnh địa điểm'}
               loading="lazy"
@@ -268,14 +272,6 @@ function MessageMedia({ media = [] }) {
             {(item.caption || item.destination) && (
               <figcaption>{item.caption || item.destination}</figcaption>
             )}
-          </>
-        );
-
-        return (
-          <figure key={`${item.url}-${index}`}>
-            {isSafeUrl(item.source_url) ? (
-              <a href={item.source_url} rel="noreferrer" target="_blank">{content}</a>
-            ) : content}
           </figure>
         );
       })}
@@ -459,6 +455,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
 
       const decoder = new TextDecoder();
       let botText = '';
+      let standardizedText = '';
       let botMedia = [];
       let botSources = [];
       let buffer = '';
@@ -483,6 +480,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
             if (dataLine) {
               try {
                 const data = JSON.parse(dataLine.slice(6));
+                standardizedText = data.answer || '';
                 botMedia = data.retrieval?.media || [];
                 botSources = data.retrieval?.sources || [];
               } catch {}
@@ -513,6 +511,7 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           try {
             const data = JSON.parse(dataLine.slice(6));
             if (eventName === 'done') {
+              standardizedText = data.answer || '';
               botMedia = data.retrieval?.media || [];
               botSources = data.retrieval?.sources || [];
             } else if (data.token) {
@@ -523,6 +522,8 @@ export default function ChatbotPage({ destination, onBack, onDone }) {
           } catch {}
         }
       }
+
+      if (standardizedText) botText = standardizedText;
 
       if (botText) {
         setMessages((prev) => [

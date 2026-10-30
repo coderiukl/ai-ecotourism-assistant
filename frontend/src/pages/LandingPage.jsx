@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, MessageCircle, Mountain, Navigation, Sparkles, Trees } from 'lucide-react';
 
 import { API_URL, assetUrl } from '../api';
 
@@ -81,7 +81,7 @@ export default function LandingPage({ destination, onBack, onNext }) {
   const [typedText, setTypedText] = useState('');
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [thumbnailFrame, setThumbnailFrame] = useState(0);
-  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const galleryRef = useRef(null);
 
   useEffect(() => {
     async function loadDestinations() {
@@ -130,7 +130,6 @@ export default function LandingPage({ destination, onBack, onNext }) {
     [selectedDestination],
   );
   const activeMedia = selectedMedia[activeMediaIndex] || selectedMedia[0];
-  const lightboxMedia = lightboxIndex === null ? null : selectedMedia[lightboxIndex];
   const heroImageUrl = assetUrl(activeMedia?.url || filteredDestinations[0]?.image_url);
   const fullText = destinationText(selectedDestination);
 
@@ -153,36 +152,8 @@ export default function LandingPage({ destination, onBack, onNext }) {
 
   useEffect(() => {
     setActiveMediaIndex(0);
-    setLightboxIndex(null);
+    requestAnimationFrame(() => galleryRef.current?.scrollTo({ left: 0, behavior: 'auto' }));
   }, [selectedId]);
-
-  useEffect(() => {
-    if (lightboxIndex === null) return undefined;
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') setLightboxIndex(null);
-      if (event.key === 'ArrowLeft' && selectedMedia.length > 1) {
-        setLightboxIndex((current) => (current === 0 ? selectedMedia.length - 1 : current - 1));
-      }
-      if (event.key === 'ArrowRight' && selectedMedia.length > 1) {
-        setLightboxIndex((current) => (current + 1) % selectedMedia.length);
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIndex, selectedMedia.length]);
-
-  useEffect(() => {
-    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (selectedMedia.length < 2 || prefersReducedMotion) return undefined;
-
-    const timer = window.setInterval(() => {
-      setActiveMediaIndex((current) => (current + 1) % selectedMedia.length);
-    }, 4500);
-
-    return () => window.clearInterval(timer);
-  }, [selectedId, selectedMedia.length]);
 
   useEffect(() => {
     setTypedText('');
@@ -221,14 +192,20 @@ export default function LandingPage({ destination, onBack, onNext }) {
     setSelectedId(null);
   }
 
+  function scrollToMedia(index) {
+    const gallery = galleryRef.current;
+    if (!gallery || !selectedMedia.length) return;
+    const nextIndex = (index + selectedMedia.length) % selectedMedia.length;
+    gallery.scrollTo({ left: gallery.clientWidth * nextIndex, behavior: 'smooth' });
+    setActiveMediaIndex(nextIndex);
+  }
+
   function showPreviousMedia() {
-    setActiveMediaIndex((current) => (
-      current === 0 ? selectedMedia.length - 1 : current - 1
-    ));
+    scrollToMedia(activeMediaIndex - 1);
   }
 
   function showNextMedia() {
-    setActiveMediaIndex((current) => (current + 1) % selectedMedia.length);
+    scrollToMedia(activeMediaIndex + 1);
   }
 
   return (
@@ -332,35 +309,44 @@ export default function LandingPage({ destination, onBack, onNext }) {
                     )}
                   </div>
 
-                  <div className="gallery-thumbnail-viewport">
-                    <div
-                      className="gallery-thumbnail-track"
-                      style={{ transform: `translateX(-${Math.max(0, activeMediaIndex - 1) * 82}px)` }}
-                    >
-                      {selectedMedia.map((media, index) => {
-                        const thumbnailUrl = assetUrl(media.url);
-                        return (
-                          <button
-                            className={`gallery-thumbnail${index === activeMediaIndex ? ' is-active' : ''}`}
-                            key={`${media.id || media.url}-${index}`}
-                            onClick={() => {
-                              setActiveMediaIndex(index);
-                              setLightboxIndex(index);
-                            }}
-                            type="button"
-                            aria-label={`Xem ảnh ${index + 1}: ${media.alt_text || media.caption || selectedDestination.name}`}
-                            aria-current={index === activeMediaIndex ? 'true' : undefined}
-                          >
-                            <img
-                              src={thumbnailUrl}
-                              alt={media.alt_text || media.caption || `${selectedDestination.name} ${index + 1}`}
-                              loading="lazy"
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div
+                    className="gallery-swipe-viewport"
+                    ref={galleryRef}
+                    onScroll={(event) => {
+                      const viewport = event.currentTarget;
+                      if (!viewport.clientWidth) return;
+                      const index = Math.round(viewport.scrollLeft / viewport.clientWidth);
+                      setActiveMediaIndex(Math.min(selectedMedia.length - 1, Math.max(0, index)));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowLeft') {
+                        event.preventDefault();
+                        showPreviousMedia();
+                      }
+                      if (event.key === 'ArrowRight') {
+                        event.preventDefault();
+                        showNextMedia();
+                      }
+                    }}
+                    tabIndex="0"
+                  >
+                    {selectedMedia.map((media, index) => (
+                      <figure className="gallery-slide" key={`${media.id || media.url}-${index}`}>
+                        <img
+                          src={assetUrl(media.url)}
+                          alt={media.alt_text || media.caption || `${selectedDestination.name} ${index + 1}`}
+                          loading={index === 0 ? 'eager' : 'lazy'}
+                        />
+                      </figure>
+                    ))}
                   </div>
+                  {selectedMedia.length > 1 && (
+                    <div className="gallery-dots" aria-hidden="true">
+                      {selectedMedia.map((media, index) => (
+                        <span className={index === activeMediaIndex ? 'is-active' : ''} key={media.id || media.url || index} />
+                      ))}
+                    </div>
+                  )}
                   {(activeMedia?.caption || activeMedia?.alt_text) && (
                     <small className="gallery-caption">
                       {activeMedia.caption || activeMedia.alt_text}
@@ -400,62 +386,6 @@ export default function LandingPage({ destination, onBack, onNext }) {
         </div>
       </div>
 
-      {lightboxMedia && (
-        <div
-          className="media-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Xem ảnh lớn ${selectedDestination?.name || ''}`}
-          onClick={() => setLightboxIndex(null)}
-        >
-          <button
-            className="media-lightbox-close"
-            type="button"
-            onClick={() => setLightboxIndex(null)}
-            aria-label="Đóng ảnh lớn"
-          >
-            <X size={22} />
-          </button>
-
-          {selectedMedia.length > 1 && (
-            <>
-              <button
-                className="media-lightbox-nav is-previous"
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setLightboxIndex((current) => (current === 0 ? selectedMedia.length - 1 : current - 1));
-                }}
-                aria-label="Ảnh trước"
-              >
-                <ChevronLeft size={28} />
-              </button>
-              <button
-                className="media-lightbox-nav is-next"
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setLightboxIndex((current) => (current + 1) % selectedMedia.length);
-                }}
-                aria-label="Ảnh tiếp theo"
-              >
-                <ChevronRight size={28} />
-              </button>
-            </>
-          )}
-
-          <figure className="media-lightbox-content" onClick={(event) => event.stopPropagation()}>
-            <img
-              src={assetUrl(lightboxMedia.url)}
-              alt={lightboxMedia.alt_text || lightboxMedia.caption || selectedDestination?.name || ''}
-            />
-            <figcaption>
-              <span>{lightboxIndex + 1}/{selectedMedia.length}</span>
-              {lightboxMedia.caption || lightboxMedia.alt_text || selectedDestination?.name}
-            </figcaption>
-          </figure>
-        </div>
-      )}
     </div>
   );
 }

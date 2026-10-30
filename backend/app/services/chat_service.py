@@ -93,14 +93,34 @@ def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, str]]:
             }
         )
 
+        if len(sources) >= 2:
+            break
+
     return sources
 
 
-# Only hit the live Sun World scraper for intents where prices/hours/events
-# actually change over time. Running it on every question (incl. greetings and
-# general chit-chat) was the main reason a Sun World link showed up on almost
-# every reply regardless of relevance.
+# Volatile questions always need a current external check. Other substantive
+# questions also search the official source so the model can supplement local
+# RAG data; short social messages are skipped to avoid irrelevant links.
 VOLATILE_INTENTS = {"price", "opening_hours", "events_culture", "contact", "facilities"}
+SOCIAL_MESSAGES = {
+    "alo",
+    "cảm ơn",
+    "cam on",
+    "chào",
+    "chào bạn",
+    "hello",
+    "hi",
+    "hey",
+    "xin chào",
+}
+
+
+def should_search_external(question: str, intent: str) -> bool:
+    normalized = " ".join(str(question or "").casefold().split())
+    if not normalized or normalized in SOCIAL_MESSAGES:
+        return False
+    return intent in VOLATILE_INTENTS or len(normalized) >= 6
 
 
 async def contexts_for_question(
@@ -115,11 +135,9 @@ async def contexts_for_question(
         destination_id=destination_id,
         intent=intent,
     )
-    live_contexts = (
-        await sunworld_search.search(question, destination_name)
-        if intent in VOLATILE_INTENTS
-        else []
-    )
+    live_contexts = []
+    if should_search_external(question, intent):
+        live_contexts = await sunworld_search.search(question, destination_name)
     seen_ids: set[str] = set()
     merged: list[dict[str, Any]] = []
 
