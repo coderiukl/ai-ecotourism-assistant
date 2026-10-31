@@ -142,6 +142,45 @@ _GENERIC_DESTINATION_ALIASES = {
     "tay ninh",
 }
 
+_LOCAL_SCOPE_MARKERS = (
+    "dia diem nay",
+    "ngay day",
+    "o day",
+    "tai day",
+    "cho nay",
+)
+
+_GLOBAL_SCOPE_MARKERS = (
+    "cac dia diem",
+    "cac tuyen",
+    "khu du lich",
+    "nui ba den",
+    "tat ca",
+    "toan bo",
+    "toan khu",
+    "tong cong",
+    "tong gia",
+)
+
+
+def is_global_destination_question(question: str) -> bool:
+    """Return true when a question is about the whole tourism area.
+
+    The destination selected in the UI is conversational context, not a hard
+    search boundary. Site-wide services such as cable cars must remain
+    queryable from any destination page.
+    """
+    normalized = _normalize_place_name(question)
+    if not normalized or any(marker in normalized for marker in _LOCAL_SCOPE_MARKERS):
+        return False
+
+    if any(marker in normalized for marker in _GLOBAL_SCOPE_MARKERS):
+        return True
+
+    # Cable-car routes and their tickets apply across the complex rather than
+    # to the attraction card from which the visitor opened the chatbot.
+    return "cap treo" in normalized
+
 
 def _normalize_place_name(value: str) -> str:
     """Make Vietnamese destination names comparable to unaccented user input."""
@@ -210,6 +249,9 @@ def resolve_destination(
     current_match = match(question)
     if current_match:
         return current_match
+
+    if is_global_destination_question(question):
+        return None, None
 
     # Keep a newly mentioned place active for natural follow-ups such as
     # "đi tới đó thế nào?", even when the UI was opened from another place.

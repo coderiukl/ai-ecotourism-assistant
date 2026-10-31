@@ -154,7 +154,6 @@ AMBIGUOUS_SHORT_WORDS = {
     "giá",
     "vé",
     "giờ",
-    "cáp treo",
     "buffet",
     "đi sao",
     "có gì",

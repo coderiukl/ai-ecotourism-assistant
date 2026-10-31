@@ -56,7 +56,17 @@ def _format_urls_and_spacing(text: str) -> str:
     answer = _URL_RE.sub(protect_url, text)
     # Repair common token-boundary issues returned by compatible model gateways.
     answer = re.sub(r"(?<!\d[hH])(?<=[^\W\d_])(?=\d)", " ", answer)
-    answer = re.sub(r"(?<=\d)(?=(?:phút|giờ|tiếng|km|mét)\b)", " ", answer, flags=re.IGNORECASE)
+    answer = re.sub(
+        r"(?<=\d)(?=(?:đ|vnđ|vnd|đồng|phút|giờ|tiếng|km|mét|người|lượt|vé)\b)",
+        " ",
+        answer,
+        flags=re.IGNORECASE,
+    )
+    # Models occasionally concatenate sentences or labels around punctuation.
+    # Avoid decimal/time separators by requiring a letter after the mark.
+    answer = re.sub(r"(?<=[,;:!?])(?=[^\W\d_])", " ", answer)
+    answer = re.sub(r"(?<!\d):(?=\d)", ": ", answer)
+    answer = re.sub(r"(?<=\.)(?=[^\W\d_])", " ", answer)
     # Collapse whitespace left behind by removed connectors/URLs and fix any
     # now-dangling punctuation (e.g. "tại  ." -> "tại.").
     answer = re.sub(r"[ \t]{2,}", " ", answer)

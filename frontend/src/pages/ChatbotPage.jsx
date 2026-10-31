@@ -108,6 +108,11 @@ function splitMarkdownRow(line) {
 function normalizeMarkdownText(text) {
   const raw = String(text || '')
     .replace(/\r\n?/g, '\n')
+    .replace(/(?<=\p{L})(?=\d)/gu, ' ')
+    .replace(/(?<=\d)(?=(?:đ|vnđ|vnd|đồng|phút|giờ|tiếng|km|mét|người|lượt|vé)\b)/giu, ' ')
+    .replace(/(?<=[,;:!?])(?=\p{L})/gu, ' ')
+    .replace(/(?<!\d):(?=\d)/g, ': ')
+    .replace(/(?<=\.)(?=\p{L})/gu, ' ')
     .trim()
     .replace(/(^|\n)\s*\u2022\s+/g, '$1- ')
     .replace(
