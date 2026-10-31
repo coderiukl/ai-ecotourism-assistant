@@ -4,15 +4,24 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
+import re
 import threading
 import time
+import unicodedata
 from functools import lru_cache
 from typing import Any
 from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
 
 from openpyxl import load_workbook
 
-from app.core.config import DATABASE_URL, DATA_PATH, DATA_REFRESH_SECONDS
+from app.core.config import (
+    DATA_PATH,
+    DATA_REFRESH_SECONDS,
+    DATABASE_URL,
+    WEB_KNOWLEDGE_MAX_CONTEXTS,
+    WEB_KNOWLEDGE_RETENTION_DAYS,
+)
 
 try:
     import asyncpg
@@ -31,6 +40,32 @@ logger = logging.getLogger(__name__)
 _pool: Any | None = None
 _refresh_lock = threading.RLock()
 _last_refresh_monotonic = 0.0
+
+_WEB_KNOWLEDGE_STOP_WORDS = {
+    "ai",
+    "ban",
+    "biet",
+    "cach",
+    "cho",
+    "co",
+    "cua",
+    "duoc",
+    "gi",
+    "hien",
+    "la",
+    "minh",
+    "mot",
+    "nao",
+    "nay",
+    "nhung",
+    "o",
+    "tai",
+    "the",
+    "thong",
+    "tin",
+    "va",
+    "ve",
+}
 
 
 DB_SHEETS = [
@@ -213,6 +248,22 @@ async def migrate() -> None:
 
             create index if not exists idx_chat_messages_created_at
             on chat_messages(created_at);
+
+            create table if not exists web_knowledge (
+                source_url text primary key,
+                title text not null default '',
+                content text not null,
+                source_type text not null default 'live_web',
+                search_query text not null default '',
+                image_url text not null default '',
+                source_updated_at text not null default '',
+                first_seen_at timestamptz not null default now(),
+                last_seen_at timestamptz not null default now(),
+                hit_count integer not null default 1
+            );
+
+            create index if not exists idx_web_knowledge_last_seen_at
+            on web_knowledge(last_seen_at desc);
             """
         )
 
@@ -277,6 +328,183 @@ async def save_chat(
                 assistant_message,
                 json.dumps(metadata, ensure_ascii=False),
             )
+
+
+async def save_web_knowledge(
+    search_query: str,
+    documents: list[dict[str, Any]],
+) -> int:
+    """Persist attributable web snippets so later questions can reuse them."""
+    if _pool is None or not documents:
+        return 0
+
+    saved = 0
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            for document in documents:
+                source_url = clean(document.get("source_url"))
+                content = clean(document.get("text"))
+                if not source_url.startswith(("https://", "http://")) or not content:
+                    continue
+
+                await conn.execute(
+                    """
+                    insert into web_knowledge(
+                        source_url,
+                        title,
+                        content,
+                        source_type,
+                        search_query,
+                        image_url,
+                        source_updated_at
+                    )
+                    values($1, $2, $3, $4, $5, $6, $7)
+                    on conflict(source_url)
+                    do update set
+                        title = excluded.title,
+                        content = excluded.content,
+                        source_type = excluded.source_type,
+                        search_query = excluded.search_query,
+                        image_url = excluded.image_url,
+                        source_updated_at = excluded.source_updated_at,
+                        last_seen_at = now(),
+                        hit_count = web_knowledge.hit_count + 1
+                    """,
+                    source_url,
+                    clean(document.get("title")) or "Nguồn web",
+                    content[:8_000],
+                    clean(document.get("type")) or "live_web",
+                    clean(search_query)[:2_000],
+                    clean(document.get("image_url")),
+                    clean(document.get("last_updated")),
+                )
+                saved += 1
+
+    return saved
+
+
+def _web_knowledge_tokens(value: str) -> set[str]:
+    text = unicodedata.normalize("NFD", str(value or "").casefold())
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    text = text.replace("đ", "d")
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", text)
+        if len(token) >= 2 and token not in _WEB_KNOWLEDGE_STOP_WORDS
+    }
+
+
+def _web_knowledge_score(question: str, row: dict[str, Any]) -> float:
+    query_tokens = _web_knowledge_tokens(question)
+    if not query_tokens:
+        return 0.0
+
+    title_tokens = _web_knowledge_tokens(clean(row.get("title")))
+    content_tokens = _web_knowledge_tokens(clean(row.get("content")))
+    previous_query_tokens = _web_knowledge_tokens(clean(row.get("search_query")))
+    title_overlap = len(query_tokens & title_tokens)
+    content_overlap = len(query_tokens & content_tokens)
+    query_overlap = len(query_tokens & previous_query_tokens)
+    return (
+        title_overlap * 2.0
+        + query_overlap * 1.5
+        + content_overlap
+    ) / math.sqrt(len(query_tokens))
+
+
+async def search_web_knowledge(
+    question: str,
+    limit: int = WEB_KNOWLEDGE_MAX_CONTEXTS,
+) -> list[dict[str, Any]]:
+    """Return relevant saved sources, favoring a mix of different domains."""
+    if _pool is None:
+        return []
+
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            select
+                source_url,
+                title,
+                content,
+                source_type,
+                search_query,
+                image_url,
+                source_updated_at,
+                last_seen_at,
+                hit_count
+            from web_knowledge
+            where last_seen_at >= now() - make_interval(days => $1)
+            order by last_seen_at desc
+            limit 500
+            """,
+            WEB_KNOWLEDGE_RETENTION_DAYS,
+        )
+
+    scored = []
+    for row in rows:
+        item = dict(row)
+        score = _web_knowledge_score(question, item)
+        if score > 0:
+            scored.append((score, item))
+    scored.sort(key=lambda item: item[0], reverse=True)
+
+    selected: list[tuple[float, dict[str, Any]]] = []
+    deferred: list[tuple[float, dict[str, Any]]] = []
+    seen_hosts: set[str] = set()
+    for candidate in scored:
+        host = (urlsplit(clean(candidate[1].get("source_url"))).hostname or "").casefold()
+        if host and host not in seen_hosts and len(selected) < limit:
+            selected.append(candidate)
+            seen_hosts.add(host)
+        else:
+            deferred.append(candidate)
+
+    for candidate in deferred:
+        if len(selected) >= limit:
+            break
+        selected.append(candidate)
+
+    return [
+        {
+            "id": f"stored-web:{hashlib.sha1(clean(row.get('source_url')).encode()).hexdigest()[:16]}",
+            "sheet": "web_knowledge",
+            "type": "stored_web",
+            "title": clean(row.get("title")) or "Nguồn web đã lưu",
+            "dest_code": "",
+            "source_url": clean(row.get("source_url")),
+            "image_url": clean(row.get("image_url")),
+            "last_updated": clean(row.get("source_updated_at")),
+            "stored_at": clean(row.get("last_seen_at")),
+            "text": clean(row.get("content")),
+            "score": round(score, 4),
+        }
+        for score, row in selected
+    ]
+
+
+async def web_knowledge_stats() -> dict[str, Any]:
+    if _pool is None:
+        return {"enabled": False, "documents": 0}
+
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            select
+                count(*)::integer as documents,
+                min(first_seen_at) as oldest_source,
+                max(last_seen_at) as latest_source
+            from web_knowledge
+            """
+        )
+
+    return {
+        "enabled": True,
+        "documents": int(row["documents"] or 0),
+        "oldest_source": clean(row["oldest_source"]),
+        "latest_source": clean(row["latest_source"]),
+        "retention_days": WEB_KNOWLEDGE_RETENTION_DAYS,
+    }
 
 
 def enabled() -> bool:

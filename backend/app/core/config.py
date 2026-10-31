@@ -61,6 +61,26 @@ SUNWORLD_SEARCH_TIMEOUT_SECONDS = float(os.getenv("SUNWORLD_SEARCH_TIMEOUT_SECON
 SUNWORLD_CACHE_SECONDS = max(60, _int("SUNWORLD_CACHE_SECONDS", 900))
 SUNWORLD_SEARCH_MAX_PAGES = max(1, min(5, _int("SUNWORLD_SEARCH_MAX_PAGES", 3)))
 
+# Optional general web search. Sun World remains the preferred first-party
+# source; Tavily broadens coverage for time-sensitive visitor advice.
+WEB_SEARCH_ENABLED = _bool("WEB_SEARCH_ENABLED", True)
+WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "tavily").strip().lower()
+WEB_SEARCH_API_KEY = os.getenv(
+    "WEB_SEARCH_API_KEY",
+    os.getenv("TAVILY_API_KEY", ""),
+).strip()
+WEB_SEARCH_TIMEOUT_SECONDS = float(os.getenv("WEB_SEARCH_TIMEOUT_SECONDS", "10"))
+WEB_SEARCH_CACHE_SECONDS = max(60, _int("WEB_SEARCH_CACHE_SECONDS", 900))
+WEB_SEARCH_MAX_RESULTS = max(1, min(5, _int("WEB_SEARCH_MAX_RESULTS", 3)))
+WEB_KNOWLEDGE_RETENTION_DAYS = max(
+    1,
+    _int("WEB_KNOWLEDGE_RETENTION_DAYS", 90),
+)
+WEB_KNOWLEDGE_MAX_CONTEXTS = max(
+    1,
+    min(8, _int("WEB_KNOWLEDGE_MAX_CONTEXTS", 4)),
+)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")

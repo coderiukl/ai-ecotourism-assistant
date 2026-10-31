@@ -282,15 +282,16 @@ function MessageMedia({ media = [] }) {
 function MessageSources({ sources = [] }) {
   const visibleSources = sources
     .filter((source) => source?.url && isSafeUrl(source.url))
-    .slice(0, 3);
+    .slice(0, 5);
   if (!visibleSources.length) return null;
 
   return (
     <div className="message-sources">
-      <span>Cập nhật từ Sun World</span>
+      <span>Nguồn tham khảo</span>
       {visibleSources.map((source) => (
         <a href={source.url} key={source.url} rel="noreferrer" target="_blank">
-          {source.title || 'Xem nguồn chính thức'}
+          {source.citation_index ? `[${source.citation_index}] ` : ''}
+          {source.title || 'Xem nguồn'}
         </a>
       ))}
     </div>

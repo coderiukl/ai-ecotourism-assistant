@@ -13,7 +13,7 @@ from app.core.config import OPENAI_BASE_URL, OPENAI_MODEL
 from app.db import postgres
 from app.rag.retriever import status as rag_status
 from app.rag.vector_store import rebuild_collection, rebuild_status
-from app.services import chat_service, llm
+from app.services import chat_service, llm, web_search
 from app.services.query_understanding import understand_query
 
 router = APIRouter()
@@ -26,7 +26,7 @@ def root():
     }
 
 @router.get("/api/status")
-def api_status():
+async def api_status():
     return {
         "data": postgres.data_stats(),
         "postgres_enabled": postgres.enabled(),
@@ -35,6 +35,10 @@ def api_status():
             "model": OPENAI_MODEL,
             "provider_host": urlsplit(OPENAI_BASE_URL).hostname or "",
         },
+        "web_search": {
+            "configured": web_search.configured(),
+        },
+        "web_knowledge": await postgres.web_knowledge_stats(),
     }
 
 

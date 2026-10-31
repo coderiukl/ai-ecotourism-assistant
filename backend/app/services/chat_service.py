@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 import unicodedata
 from typing import Any
@@ -7,8 +9,10 @@ from typing import Any
 from app.core.config import DEBUG_RETRIEVAL, OPENAI_MODEL, RAG_TOP_K
 from app.db import postgres
 from app.rag.retriever import retrieve
-from app.services import llm, sunworld_search
+from app.services import llm, sunworld_search, web_search
 from app.services.query_understanding import understand_query
+
+logger = logging.getLogger(__name__)
 
 
 def related_media(
@@ -80,12 +84,12 @@ def related_media(
     return media
 
 
-def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, str]]:
-    sources: list[dict[str, str]] = []
+def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
 
     for context in contexts:
-        if context.get("type") != "live_sunworld":
+        if context.get("type") not in {"live_sunworld", "live_web", "stored_web"}:
             continue
         url = str(context.get("source_url") or "").strip()
         if not url or url in seen_urls:
@@ -96,10 +100,12 @@ def live_sources(contexts: list[dict[str, Any]]) -> list[dict[str, str]]:
                 "title": str(context.get("title") or "Sun World Ba Den Mountain"),
                 "url": url,
                 "last_updated": str(context.get("last_updated") or ""),
+                "citation_index": context.get("citation_index"),
+                "source_type": str(context.get("type") or ""),
             }
         )
 
-        if len(sources) >= 2:
+        if len(sources) >= 5:
             break
 
     return sources
@@ -225,6 +231,31 @@ def should_search_external(question: str, intent: str) -> bool:
     return intent in VOLATILE_INTENTS
 
 
+def should_search_web(question: str, intent: str) -> bool:
+    normalized = " ".join(str(question or "").casefold().split())
+    if not normalized:
+        return False
+
+    # Auto mode: every substantive visitor question gets a live web lookup.
+    # Skip short social turns because searching for greetings/thanks only adds
+    # latency and provider cost without improving the answer.
+    social_prefixes = (
+        "chào",
+        "xin chào",
+        "hello",
+        "hi",
+        "hey",
+        "cảm ơn",
+        "cam on",
+        "tạm biệt",
+        "tam biet",
+    )
+    is_short_social_turn = len(normalized.split()) <= 6 and any(
+        normalized.startswith(prefix) for prefix in social_prefixes
+    )
+    return normalized not in SOCIAL_MESSAGES and not is_short_social_turn
+
+
 async def contexts_for_question(
     question: str,
     destination_id: int | None,
@@ -237,18 +268,62 @@ async def contexts_for_question(
         destination_id=destination_id,
         intent=intent,
     )
-    live_contexts = []
+    search_tasks = []
     if should_search_external(question, intent):
-        live_contexts = await sunworld_search.search(question, destination_name)
+        search_tasks.append(sunworld_search.search(question, destination_name))
+    if should_search_web(question, intent):
+        search_tasks.append(web_search.search(question, destination_name))
+
+    search_results = await asyncio.gather(
+        postgres.search_web_knowledge(question),
+        *search_tasks,
+        return_exceptions=True,
+    )
+    stored_result = search_results[0]
+    stored_contexts = stored_result if isinstance(stored_result, list) else []
+    if isinstance(stored_result, Exception):
+        logger.warning("Stored web knowledge retrieval skipped: %s", stored_result)
+
+    live_contexts: list[dict[str, Any]] = []
+    for result in search_results[1:]:
+        if isinstance(result, list):
+            live_contexts.extend(result)
+        elif isinstance(result, Exception):
+            logger.warning("Live source retrieval skipped: %s", result)
+
+    if live_contexts:
+        try:
+            await postgres.save_web_knowledge(question, live_contexts)
+        except Exception as exc:
+            logger.warning("Web knowledge persistence skipped: %s", exc)
     seen_ids: set[str] = set()
     merged: list[dict[str, Any]] = []
 
-    for context in [*live_contexts, *local_contexts]:
-        context_id = str(context.get("id") or context.get("source_url") or "")
+    # Keep the prompt varied: current web sources first, then a small number of
+    # saved sources and local RAG documents before filling remaining slots.
+    ordered_contexts = [
+        *live_contexts[:3],
+        *stored_contexts[:2],
+        *local_contexts[:2],
+        *live_contexts[3:],
+        *stored_contexts[2:],
+        *local_contexts[2:],
+    ]
+    for context in ordered_contexts:
+        # The same official page may be returned by both the Sun World crawler
+        # and the general search provider. Prefer URL identity so it is cited
+        # only once even when provider-specific IDs differ.
+        context_id = str(context.get("source_url") or context.get("id") or "").strip().casefold()
         if not context_id or context_id in seen_ids:
             continue
         seen_ids.add(context_id)
         merged.append(context)
+
+    citation_index = 0
+    for context in merged:
+        if context.get("type") in {"live_sunworld", "live_web", "stored_web"}:
+            citation_index += 1
+            context["citation_index"] = citation_index
 
     return merged
 
