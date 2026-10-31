@@ -1,4 +1,4 @@
-const LOCAL_API_URL = 'http://localhost:8000';
+const LOCAL_API_URL = 'http://localhost:8003';
 const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 
 export const API_URL = (import.meta.env.VITE_API_URL || (isLocalHost ? LOCAL_API_URL : '')).replace(/\/$/, '');

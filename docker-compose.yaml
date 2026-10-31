@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8003:8003"
     env_file:
       - ./backend/.env
     environment:
@@ -20,7 +20,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://backend:8000
+    command: tunnel --no-autoupdate --url http://backend:8003
     depends_on:
       - backend
 

@@ -18,6 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend .
 COPY nui_ba_den_tourism_database.xlsx /app/nui_ba_den_tourism_database.xlsx
 
-EXPOSE 8000
+EXPOSE 8003
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8003}"]
